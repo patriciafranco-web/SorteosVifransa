@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorteos Vifran S.A. - Plataforma Oficial</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between">
+    <div class="max-w-xl mx-auto p-6 w-full">
+        <header class="text-center my-8">
+            <h1 class="text-3xl font-black text-amber-400 tracking-wider">SORTEOS VIFRAN S.A.</h1>
+            <p class="text-slate-400 mt-1 text-sm">Confianza que premia.</p>
+        </header>
+
+        <!-- Selector de Sorteos Activos -->
+        <div class="bg-slate-900 p-6 rounded-2xl shadow-xl border border-slate-800 mb-6">
+            <h2 class="text-lg font-bold mb-3 text-amber-300 flex items-center gap-2">🎯 Selecciona un Sorteo</h2>
+            <select id="selectSorteo" onchange="actualizarTotales()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option value="">Cargando sorteos disponibles...</option>
+            </select>
+        </div>
+
+        <!-- Formulario de Compra -->
+        <div class="bg-slate-900 p-6 rounded-2xl shadow-xl border border-slate-800 mb-6">
+            <h2 class="text-lg font-bold mb-4 text-amber-300">🎟️ Registrar Tus Datos y Pago</h2>
+            <form id="formCompra" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nombre Completo</label>
+                    <input type="text" id="nombre" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Cédula de Identidad</label>
+                    <input type="text" id="cedula" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Teléfono / WhatsApp</label>
+                    <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Cantidad de Boletos</label>
+                    <input type="number" id="cantidad" value="1" min="1" max="100" onchange="actualizarTotales()" onkeyup="actualizarTotales()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <!-- Visor del Total a Pagar -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                    <p class="text-xs uppercase text-slate-400 font-semibold">Total a Pagar:</p>
+                    <p class="text-xl font-black text-amber-400 mt-1">Gs. <span id="totalPagarGs">50.000</span></p>
+                </div>
+
+                <!-- SECCIÓN DE MÉTODOS DE PAGO -->
+                <div class="border-t border-slate-800 pt-4 mt-2">
+                    <label class="block text-xs font-semibold uppercase text-amber-400 mb-2">Selecciona Método de Pago:</label>
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <button type="button" onclick="cambiarMetodo('Transferencia / QR')" id="btnTransfer" class="bg-amber-500 text-slate-950 font-bold py-2 px-3 rounded-xl text-xs transition">Transferencia / QR</button>
+                        <button type="button" onclick="cambiarMetodo('Tarjeta')" id="btnTarjeta" class="bg-slate-950 border border-slate-700 text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition">Tarjeta</button>
+                        <button type="button" onclick="cambiarMetodo('Cripto (Binance)')" id="btnCrypto" class="bg-slate-950 border border-slate-700 text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition">Cripto (Binance)</button>
+                    </div>
+
+                    <!-- Contenido 1: Transferencia y QR -->
+                    <div id="infoTransferencia" class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-amber-400 mb-1">💳 Datos Bancarios:</p>
+                                <p>Banco Familiar / Visión</p>
+                                <p>Nro. Cuenta: <span class="font-mono text-white">123456789</span></p>
+                                <p>Titular: Vifran S.A.</p>
+                            </div>
+                            <div class="bg-white p-2 rounded-lg text-center">
+                                <div class="w-20 h-20 bg-slate-200 flex items-center justify-center text-xs text-slate-600 font-bold rounded"> [ QR BANCARIO ]</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contenido 2: Tarjeta -->
+                    <div id="infoTarjeta" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300">
+                        <p class="font-bold text-amber-400 mb-2">💳 Pago con Tarjeta de Crédito/Débito</p>
+                        <p class="text-xs text-slate-400">Próximamente integración automática con pasarela de pagos.</p>
+                    </div>
+
+                    <!-- Contenido 3: Cripto (Binance) -->
+                    <div id="infoCrypto" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
+                        <p class="font-bold text-amber-400">🪙 Pago vía Binance (USDT):</p>
+                        <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-amber-300 text-center font-bold">
+                            Monto exacto a transferir: <span id="montoCalculadoUSDT" class="text-white text-base">0.00</span> USDT
+                        </div>
+                        <p class="text-xs text-slate-400">Envía a nuestro Binance Pay o Correo:</p>
+                        <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-emerald-400">
+                            <p>📧 Correo: <span class="text-white">pago@vifransa.com</span></p>
+                            <p>🆔 Binance Pay ID: <span class="text-white">123456789</span></p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Ingresa el Hash de Transacción (TxID):</label>
+                            <input type="text" id="hashCrypto" placeholder="Ej: 0x8f9c... o ID de orden" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3.5 rounded-xl transition shadow-lg shadow-amber-500/10 mt-4">Participar Ahora</button>
+            </form>
+            <div id="resultadoCompra" class="mt-4 text-center text-sm font-semibold"></div>
+        </div>
+
+        <!-- Módulo de Consulta Pública -->
+        <div class="bg-slate-900 p-6 rounded-2xl shadow-xl border border-slate-800">
+            <h2 class="text-lg font-bold mb-3 text-amber-300">🔍 Consultar Mis Boletos</h2>
+            <div class="flex gap-2">
+                <input type="text" id="terminoConsulta" placeholder="Cédula o Teléfono" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <button onclick="consultarBoletos()" class="bg-indigo-600 hover:bg-indigo-500 font-bold px-5 rounded-xl text-white transition">Buscar</button>
+            </div>
+            <div id="resultadoConsulta" class="mt-4 space-y-2"></div>
+        </div>
+    </div>
+
+    <footer class="text-center py-6 text-xs text-slate-600">
+        Sorteos Vifran S.A. • <a href="/admin" class="hover:text-slate-400 underline">Acceso Administrativo</a>
+    </footer>
+
+    <script>
+        let metodoSeleccionado = 'Transferencia / QR';
+        let listaSorteosGlobal = [];
+        let tasaUsdtGlobal = 7800;
+
+        function cambiarMetodo(metodo) {
+            metodoSeleccionado = metodo;
+            document.getElementById('infoTransferencia').classList.add('hidden');
+            document.getElementById('infoTarjeta').classList.add('hidden');
+            document.getElementById('infoCrypto').classList.add('hidden');
+
+            document.getElementById('btnTransfer').className = "bg-slate-950 border border-slate-700 text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition";
+            document.getElementById('btnTarjeta').className = "bg-slate-950 border border-slate-700 text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition";
+            document.getElementById('btnCrypto').className = "bg-slate-950 border border-slate-700 text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition";
+
+            if(metodo === 'Transferencia / QR') {
+                document.getElementById('infoTransferencia').classList.remove('hidden');
+                document.getElementById('btnTransfer').className = "bg-amber-500 text-slate-950 font-bold py-2 px-3 rounded-xl text-xs transition";
+            } else if(metodo === 'Tarjeta') {
+                document.getElementById('infoTarjeta').classList.remove('hidden');
+                document.getElementById('btnTarjeta').className = "bg-amber-500 text-slate-950 font-bold py-2 px-3 rounded-xl text-xs transition";
+            } else if(metodo === 'Cripto (Binance)') {
+                document.getElementById('infoCrypto').classList.remove('hidden');
+                document.getElementById('btnCrypto').className = "bg-amber-500 text-slate-950 font-bold py-2 px-3 rounded-xl text-xs transition";
+                actualizarTotales();
+            }
+        }
+
+        async function cargarSorteos() {
+            const res = await fetch('/api/sorteos');
+            const data = await res.json();
+            listaSorteosGlobal = data.sorteos;
+            tasaUsdtGlobal = data.tasa_usdt;
+
+            const select = document.getElementById('selectSorteo');
+            select.innerHTML = '';
+            if(listaSorteosGlobal.length === 0) {
+                select.innerHTML = '<option value="">No hay sorteos activos en este momento</option>';
+                return;
+            }
+            listaSorteosGlobal.forEach(s => {
+                select.innerHTML += `<option value="${s.id}">${s.titulo} (Gs. ${s.precio.toLocaleString()})</option>`;
+            });
+            actualizarTotales();
+        }
+        cargarSorteos();
+
+        function actualizarTotales() {
+            const sorteoId = document.getElementById('selectSorteo').value;
+            const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+            const sorteoEncontrado = listaSorteosGlobal.find(s => s.id == sorteoId);
+            if(sorteoEncontrado) {
+                const totalGs = sorteoEncontrado.precio * cantidad;
+                document.getElementById('totalPagarGs').innerText = totalGs.toLocaleString();
+
+                const totalUsdt = (totalGs / tasaUsdtGlobal).toFixed(2);
+                document.getElementById('montoCalculadoUSDT').innerText = totalUsdt;
+            }
+        }
+
+        document.getElementById('formCompra').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            let detalle = "Transferencia Directa";
+            if(metodoSeleccionado === 'Cripto (Binance)') {
+                detalle = document.getElementById('hashCrypto').value || "Binance sin Hash";
+            }
+
+            const res = await fetch('/api/comprar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sorteo_id: document.getElementById('selectSorteo').value,
+                    nombre: document.getElementById('nombre').value,
+                    cedula: document.getElementById('cedula').value,
+                    telefono: document.getElementById('telefono').value,
+                    cantidad: parseInt(document.getElementById('cantidad').value) || 1,
+                    metodo_pago: metodoSeleccionado,
+                    detalle_pago: detalle
+                })
+            });
+            const data = await res.json();
+            const resDiv = document.getElementById('resultadoCompra');
+            if(res.ok) {
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-emerald-400";
+                resDiv.innerText = `${data.mensaje} Tus números asignados temporales son: ${data.rango}`;
+                document.getElementById('formCompra').reset();
+                document.getElementById('cantidad').value = '1';
+                actualizarTotales();
+            } else {
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-rose-400";
+                resDiv.innerText = data.error;
+            }
+        });
+
+        async function consultarBoletos() {
+            const termino = document.getElementById('terminoConsulta').value;
+            const res = await fetch('/api/consultar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ termino })
+            });
+            const data = await res.json();
+            const container = document.getElementById('resultadoConsulta');
+            container.innerHTML = '';
+            if(data.encontrado) {
+                data.boletos.forEach(b => {
+                    container.innerHTML += `<div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex justify-between items-center text-sm">
+                        <div>
+                            <p class="font-bold text-amber-400">Boleto #${b.id} <span class="text-xs text-slate-400 font-normal">(${b.sorteo_titulo})</span></p>
+                            <p class="text-xs text-slate-400">${b.nombre} - Pago: ${b.metodo_pago}</p>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-lg text-xs font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">${b.estado}</span>
+                    </div>`;
+                });
+            } else {
+                container.innerHTML = `<p class="text-slate-400 text-center text-xs py-2">${data.mensaje}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
