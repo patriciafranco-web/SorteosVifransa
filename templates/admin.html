@@ -55,7 +55,6 @@
     </div>
 
     <script>
-        // Contraseña temporal del admin (puedes cambiarla en app.py)
         const passwordAdmin = "vifran2026admin";
 
         async function cargarDatosAdmin() {
@@ -80,8 +79,67 @@
                             </div>
                         </div>`;
                 });
+
+                // Renderizar lotes pendientes con comprobantes
+                const divPendientes = document.getElementById('listaLotesPendientes');
+                divPendientes.innerHTML = '';
+                
+                // Agrupar boletos pendientes por lote
+                const lotesPendientesMap = {};
+                data.boletos.forEach(b => {
+                    if(b.estado === 'Pendiente') {
+                        if(!lotesPendientesMap[b.lote_id]) {
+                            lotesPendientesMap[b.lote_id] = {
+                                lote_id: b.lote_id,
+                                nombre: b.nombre,
+                                cedula: b.cedula,
+                                telefono: b.telefono,
+                                cantidad: b.cantidad_lote,
+                                imagen: b.imagen_comprobante,
+                                boletos: []
+                            };
+                        }
+                        lotesPendientesMap[b.lote_id].boletos.push(b.id);
+                    }
+                });
+
+                const lotesArray = Object.values(lotesPendientesMap);
+                if(lotesArray.length === 0) {
+                    divPendientes.innerHTML = `<p class="text-slate-400 text-sm text-center py-4">No hay pagos pendientes de aprobación.</p>`;
+                } else {
+                    lotesArray.forEach(l => {
+                        divPendientes.innerHTML += `
+                            <div class="bg-slate-900 p-4 rounded border border-slate-700 space-y-3">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <p class="font-bold text-amber-400">${l.nombre} (CI: ${l.cedula})</p>
+                                        <p class="text-xs text-slate-400">Tel: ${l.telefono} | Cantidad: ${l.cantidad} boletos</p>
+                                        <p class="text-xs text-emerald-400 mt-1">Asignados: #${l.boletos[0]} al #${l.boletos[l.boletos.length-1]}</p>
+                                    </div>
+                                    <button onclick="aprobarLote(${l.lote_id})" class="bg-emerald-600 hover:bg-emerald-700 text-xs font-bold px-3 py-2 rounded transition">Aprobar</button>
+                                </div>
+                                ${l.imagen ? `<div class="mt-2"><a href="${l.imagen}" target="_blank"><img src="${l.imagen}" alt="Comprobante" class="w-32 h-32 object-cover rounded border border-slate-700 hover:opacity-80 transition cursor-pointer"></a><p class="text-[10px] text-slate-500 mt-1">Haz clic en la imagen para ampliar</p></div>` : '<p class="text-xs text-rose-400">Sin comprobante adjunto</p>'}
+                            </div>`;
+                    });
+                }
             }
         }
+
+        async function aprobarLote(loteId) {
+            const res = await fetch(`/api/admin/aprobar-lote/${loteId}`, {
+                method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ usuario: 'admin', password: passwordAdmin })
+            });
+            const data = await res.json();
+            if(res.ok) {
+                alert(data.mensaje);
+                cargarDatosAdmin();
+            } else {
+                alert(data.error || "Error al aprobar lote");
+            }
+        }
+
         cargarDatosAdmin();
 
         document.getElementById('formNuevoSorteo').addEventListener('submit', async (e) => {
