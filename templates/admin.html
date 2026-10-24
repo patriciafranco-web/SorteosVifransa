@@ -2,308 +2,116 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Admin - Sorteos Vifran S.A.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Sorteos Vifran S.A.</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 p-6 font-sans">
+<body class="bg-slate-900 text-white min-h-screen p-6">
     <div class="max-w-6xl mx-auto">
-        <h1 class="text-2xl font-black text-amber-400 mb-6">🔒 Panel de Control - Sorteos Vifran S.A.</h1>
-        
-        <!-- Login Box -->
-        <div id="loginBox" class="bg-slate-900 p-6 rounded-2xl border border-slate-800 max-w-md shadow-xl">
-            <h2 class="text-lg font-bold text-amber-300 mb-4">Iniciar Sesión</h2>
-            <div class="space-y-4">
+        <header class="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+            <h1 class="text-2xl font-extrabold text-amber-400">🔒 Panel de Control - Sorteos Vifran S.A.</h1>
+            <button onclick="cerrarSesion()" class="bg-rose-600 hover:bg-rose-700 text-sm font-bold px-4 py-2 rounded transition">Cerrar Sesión</button>
+        </header>
+
+        <!-- Crear Nuevo Sorteo con Límite de Boletos -->
+        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-8">
+            <h2 class="text-xl font-bold mb-4 text-amber-300">➕ Crear Nuevo Sorteo / Rifa</h2>
+            <form id="formNuevoSorteo" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Usuario</label>
-                    <input type="text" id="userInput" placeholder="admin" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <label class="block text-sm font-medium mb-1">Título del Sorteo</label>
+                    <input type="text" id="nuevoTitulo" required placeholder="Ej: Combo iPhone Pro Max" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
                 </div>
                 <div>
-                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Contraseña</label>
-                    <input type="password" id="passInput" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <label class="block text-sm font-medium mb-1">Precio por Boleto (Gs.)</label>
+                    <input type="number" id="nuevoPrecio" required placeholder="2000" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
                 </div>
-                <button onclick="cargarPanelAdmin()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition">Ingresar al Sistema</button>
-            </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Límite Total de Boletos</label>
+                    <input type="number" id="nuevoLimite" required placeholder="5000" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                </div>
+                <div class="md:col-span-3">
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 font-bold py-3 rounded text-white transition">Crear Sorteo</button>
+                </div>
+            </form>
+            <div id="resCrearSorteo" class="mt-4 text-center font-semibold"></div>
         </div>
 
-        <!-- Panel de Administración Oculto al inicio -->
-        <div id="adminPanel" class="hidden space-y-8">
-            <!-- Crear Nuevo Sorteo -->
-            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
-                <h2 class="text-lg font-bold text-amber-300 mb-4">➕ Crear Nuevo Sorteo / Rifa</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input type="text" id="nuevoTitulo" placeholder="Título (Ej: Sorteo Moto 125cc)" class="bg-slate-950 border border-slate-700 rounded-xl p-3 text-white">
-                    <input type="number" id="nuevoPrecio" placeholder="Precio por boleto (Gs.)" class="bg-slate-950 border border-slate-700 rounded-xl p-3 text-white">
-                    <button onclick="crearSorteo()" class="bg-emerald-600 hover:bg-emerald-500 font-bold p-3 rounded-xl text-white transition">Crear Sorteo</button>
+        <!-- Listado y Validación de Ventas / Comprobantes -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-amber-300">📊 Control de Sorteos Activos</h2>
+                <div id="listaSorteosAdmin" class="space-y-4">
+                    <!-- Se llena dinámicamente -->
                 </div>
             </div>
 
-            <!-- Gráfico y Resumen de Ganancias -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between">
-                    <div>
-                        <h2 class="text-lg font-bold text-amber-300 mb-4">📊 Control de Ganancias por Sorteo</h2>
-                        <div id="listaSorteosAdmin" class="space-y-3"></div>
-                    </div>
-                </div>
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col items-center justify-center">
-                    <h2 class="text-sm font-bold text-amber-300 mb-2 uppercase tracking-wide">Distribución de Recaudación Global</h2>
-                    <div class="w-64 h-64 relative">
-                        <canvas id="graficoGanancias"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Compras Pendientes de Aprobación -->
-            <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
-                <div class="p-4 bg-slate-850 border-b border-slate-800">
-                    <h2 class="text-lg font-bold text-amber-300">🎟️ Compras Pendientes de Aprobación</h2>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-slate-850 text-slate-400 border-b border-slate-800 uppercase text-xs tracking-wider">
-                                <th class="p-4">Lote</th>
-                                <th class="p-4">Sorteo</th>
-                                <th class="p-4">Comprador</th>
-                                <th class="p-4">Cédula / Tel</th>
-                                <th class="p-4">Boletos Asignados</th>
-                                <th class="p-4">Pago</th>
-                                <th class="p-4">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaLotes"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- LISTA COMPLETA DE COMPRADORES (Historial) -->
-            <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
-                <div class="p-4 bg-slate-850 border-b border-slate-800 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-amber-300">📜 Lista Completa de Compradores (Historial)</h2>
-                    <input type="text" id="buscadorAdmin" onkeyup="filtrarCompradores()" placeholder="Buscar por nombre o cédula..." class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-64">
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-slate-850 text-slate-400 border-b border-slate-800 uppercase text-xs tracking-wider">
-                                <th class="p-4">Boleto #</th>
-                                <th class="p-4">Sorteo</th>
-                                <th class="p-4">Comprador</th>
-                                <th class="p-4">Cédula</th>
-                                <th class="p-4">Teléfono</th>
-                                <th class="p-4">Método / Pago</th>
-                                <th class="p-4">Estado</th>
-                                <th class="p-4">Acción / Reimprimir</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaHistorialCompleto"></tbody>
-                    </table>
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-amber-300">🧾 Validación de Comprobantes y Lotes</h2>
+                <div id="listaLotesPendientes" class="space-y-4">
+                    <!-- Se llena dinámicamente con las fotos y botones de aprobar -->
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let adminUser = "";
-        let adminPassword = "";
-        let miGraficoRedondo = null;
-        let datosGlobalesAdmin = null;
+        // Contraseña temporal del admin (puedes cambiarla en app.py)
+        const passwordAdmin = "vifran2026admin";
 
-        async function cargarPanelAdmin() {
-            adminUser = document.getElementById('userInput').value;
-            adminPassword = document.getElementById('passInput').value;
-            
+        async function cargarDatosAdmin() {
             const res = await fetch('/api/admin/datos', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: adminUser, password: adminPassword })
+                body: JSON.stringify({ usuario: 'admin', password: passwordAdmin })
             });
             if(res.ok) {
-                document.getElementById('loginBox').classList.add('hidden');
-                document.getElementById('adminPanel').classList.remove('hidden');
-                datosGlobalesAdmin = await res.json();
-                renderizarTodo(datosGlobalesAdmin);
-            } else {
-                alert('Usuario o contraseña incorrectos');
+                const data = await res.json();
+                
+                // Renderizar sorteos
+                const divSorteos = document.getElementById('listaSorteosAdmin');
+                divSorteos.innerHTML = '';
+                data.sorteos.forEach(s => {
+                    divSorteos.innerHTML += `
+                        <div class="bg-slate-900 p-4 rounded border border-slate-700 flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-amber-400">${s.titulo}</p>
+                                <p class="text-xs text-slate-400">Precio: Gs. ${s.precio} | Límite: ${s.limite_boletos} boletos</p>
+                                <span class="inline-block mt-2 px-2 py-0.5 rounded text-xs font-bold ${s.estado === 'Activo' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${s.estado}</span>
+                            </div>
+                        </div>`;
+                });
             }
         }
+        cargarDatosAdmin();
 
-        async function crearSorteo() {
-            const titulo = document.getElementById('nuevoTitulo').value;
-            const precio = document.getElementById('nuevoPrecio').value;
+        document.getElementById('formNuevoSorteo').addEventListener('submit', async (e) => {
+            e.preventDefault();
             const res = await fetch('/api/admin/crear-sorteo', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: adminUser, password: adminPassword, titulo, precio: Number(precio) })
+                body: JSON.stringify({
+                    usuario: 'admin',
+                    password: passwordAdmin,
+                    titulo: document.getElementById('nuevoTitulo').value,
+                    precio: parseInt(document.getElementById('nuevoPrecio').value),
+                    limite_boletos: parseInt(document.getElementById('nuevoLimite').value)
+                })
             });
             const data = await res.json();
-            alert(data.mensaje);
-            document.getElementById('nuevoTitulo').value = '';
-            document.getElementById('nuevoPrecio').value = '';
-            cargarPanelAdmin();
-        }
-
-        async function finalizarSorteo(sorteoId) {
-            if(!confirm("¿Estás seguro de finalizar este sorteo?")) return;
-            const res = await fetch(`/api/admin/finalizar-sorteo/${sorteoId}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: adminUser, password: adminPassword })
-            });
-            const data = await res.json();
-            alert(data.mensaje);
-            cargarPanelAdmin();
-        }
-
-        async function aprobarLote(loteId) {
-            const res = await fetch(`/api/admin/aprobar-lote/${loteId}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: adminUser, password: adminPassword })
-            });
-            const data = await res.json();
-            alert(data.mensaje);
-            cargarPanelAdmin();
-        }
-
-        async function reimprimirBoleto(boletoId, sorteoId) {
-            alert(`Orden de reimpresión enviada para el boleto #${boletoId}.`);
-        }
-
-        function filtrarCompradores() {
-            const filtro = document.getElementById('buscadorAdmin').value.toLowerCase();
-            const boletosFiltrados = datosGlobalesAdmin.boletos.filter(b => 
-                b.nombre.toLowerCase().includes(filtro) || b.cedula.includes(filtro) || b.telefono.includes(filtro)
-            );
-            renderizarHistorial(boletosFiltrados, datosGlobalesAdmin.sorteos);
-        }
-
-        function renderizarTodo(data) {
-            datosGlobalesAdmin = data;
-            const listaSorteos = document.getElementById('listaSorteosAdmin');
-            listaSorteos.innerHTML = '';
-
-            let nombresSorteos = [];
-            let gananciasSorteos = [];
-            let coloresGrafico = ['#f59e0b', '#10b981', '#6366f1', '#ec4899', '#3b82f6'];
-
-            data.sorteos.forEach((s) => {
-                const boletosDelSorteo = data.boletos.filter(b => b.sorteo_id === s.id);
-                const totalAprobados = boletosDelSorteo.filter(b => b.estado === 'Aprobado').length;
-                const recaudacionGs = totalAprobados * s.precio;
-
-                nombresSorteos.push(s.titulo);
-                gananciasSorteos.push(recaudacionGs);
-
-                listaSorteos.innerHTML += `
-                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
-                        <div>
-                            <p class="font-bold text-amber-400">${s.titulo}</p>
-                            <p class="text-slate-400">Aprobados: ${totalAprobados} boletos</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="font-extrabold text-emerald-400">Gs. ${recaudacionGs.toLocaleString()}</p>
-                            ${s.estado === 'Activo' ? `<button onclick="finalizarSorteo(${s.id})" class="text-rose-400 hover:underline mt-1">Finalizar</button>` : '<span class="text-slate-500">Cerrado</span>'}
-                        </div>
-                    </div>`;
-            });
-
-            const ctx = document.getElementById('graficoGanancias').getContext('2d');
-            if(miGraficoRedondo) miGraficoRedondo.destroy();
-            miGraficoRedondo = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: nombresSorteos,
-                    datasets: [{
-                        data: gananciasSorteos,
-                        backgroundColor: coloresGrafico.slice(0, nombresSorteos.length),
-                        borderWidth: 1,
-                        borderColor: '#0f172a'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 } } } }
-                }
-            });
-
-            const lotesPendientes = {};
-            data.boletos.forEach(b => {
-                if(b.estado === 'Pendiente') {
-                    if(!lotesPendientes[b.lote_id]) {
-                        lotesPendientes[b.lote_id] = {
-                            lote_id: b.lote_id, sorteo_id: b.sorteo_id, nombre: b.nombre,
-                            cedula: b.cedula, telefono: b.telefono, metodo_pago: b.metodo_pago,
-                            detalle_pago: b.detalle_pago, boletos: []
-                        };
-                    }
-                    lotesPendientes[b.lote_id].boletos.push(b.id);
-                }
-            });
-
-            const sorteosMap = {};
-            data.sorteos.forEach(s => sorteosMap[s.id] = s.titulo);
-
-            const tbodyLotes = document.getElementById('tablaLotes');
-            tbodyLotes.innerHTML = '';
-            const loteKeys = Object.keys(lotesPendientes);
-            if(loteKeys.length === 0) {
-                tbodyLotes.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500">No hay compras pendientes de aprobación.</td></tr>`;
+            const resDiv = document.getElementById('resCrearSorteo');
+            if(res.ok) {
+                resDiv.className = "mt-4 text-center font-semibold text-emerald-400";
+                resDiv.innerText = data.mensaje;
+                document.getElementById('formNuevoSorteo').reset();
+                cargarDatosAdmin();
             } else {
-                loteKeys.forEach(loteId => {
-                    const lote = lotesPendientes[loteId];
-                    const tituloSorteo = sorteosMap[lote.sorteo_id] || "Sorteo General";
-                    const ids = lote.boletos;
-                    const rangoStr = ids.length === 1 ? `#${ids[0]}` : `#${ids[0]} al #${ids[ids.length - 1]} (${ids.length} boletos)`;
-
-                    tbodyLotes.innerHTML += `<tr class="border-b border-slate-800 hover:bg-slate-850/50">
-                        <td class="p-4 font-bold text-amber-400">Lote #${lote.lote_id}</td>
-                        <td class="p-4 text-slate-300">${tituloSorteo}</td>
-                        <td class="p-4 font-medium">${lote.nombre}</td>
-                        <td class="p-4 text-slate-400 text-xs">CI: ${lote.cedula}<br>Tel: ${lote.telefono}</td>
-                        <td class="p-4 font-bold text-emerald-400">${rangoStr}</td>
-                        <td class="p-4 text-xs text-amber-300">${lote.metodo_pago}<br><span class="text-slate-500 font-mono">${lote.detalle_pago || ''}</span></td>
-                        <td class="p-4">
-                            <button onclick="aprobarLote(${lote.lote_id})" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-lg shadow-emerald-600/20">Aprobar Lote e Imprimir</button>
-                        </td>
-                    </tr>`;
-                });
+                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
+                resDiv.innerText = data.error;
             }
+        });
 
-            renderizarHistorial(data.boletos, data.sorteos);
-        }
-
-        function renderizarHistorial(boletos, sorteos) {
-            const sorteosMap = {};
-            sorteos.forEach(s => sorteosMap[s.id] = s.titulo);
-
-            const tbodyHistorial = document.getElementById('tablaHistorialCompleto');
-            tbodyHistorial.innerHTML = '';
-
-            if(boletos.length === 0) {
-                tbodyHistorial.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">No se encontraron registros de compradores.</td></tr>`;
-                return;
-            }
-
-            boletos.forEach(b => {
-                const tituloSorteo = sorteosMap[b.sorteo_id] || "Sorteo General";
-                tbodyHistorial.innerHTML += `<tr class="border-b border-slate-800 hover:bg-slate-850/50 text-xs">
-                    <td class="p-3 font-bold text-amber-400">#${b.id}</td>
-                    <td class="p-3 text-slate-300">${tituloSorteo}</td>
-                    <td class="p-3 font-medium text-white">${b.nombre}</td>
-                    <td class="p-3 text-slate-400">${b.cedula}</td>
-                    <td class="p-3 text-slate-400">${b.telefono}</td>
-                    <td class="p-3 text-amber-300">${b.metodo_pago} <br><span class="text-slate-500 font-mono">${b.detalle_pago || ''}</span></td>
-                    <td class="p-3">
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">${b.estado}</span>
-                    </td>
-                    <td class="p-3">
-                        <button onclick="reimprimirBoleto(${b.id}, ${b.sorteo_id})" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-white font-bold transition">🖨️ Reimprimir</button>
-                    </td>
-                </tr>`;
-            });
+        function cerrarSesion() {
+            window.location.href = "/";
         }
     </script>
 </body>
