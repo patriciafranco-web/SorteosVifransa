@@ -2,12 +2,12 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-# Configuración del Sorteo de los iPhones (ej: 2.000 guaraníes el boleto, con límite de 5000 boletos)
+# Configuración inicial de sorteos
 sorteos_db = [{
     "id": 1,
     "titulo": "Gran Sorteo: Combo iPhone Pro Max",
     "precio": 2000,
-    "limite_boletos": 5000,  # Límite total de boletos
+    "limite_boletos": 5000,
     "estado": "Activo",
 }]
 
@@ -34,7 +34,6 @@ def obtener_sorteos():
   activos = []
   for s in sorteos_db:
     if s["estado"] == "Activo":
-      # Calcular cuántos boletos ya se emitieron para este sorteo
       emitidos = contador_boletos_por_sorteo.get(s["id"], 1) - 1
       disponibles = s["limite_boletos"] - emitidos
       sorteo_info = s.copy()
@@ -52,9 +51,7 @@ def comprar():
   telefono = data.get("telefono")
   cedula = data.get("cedula")
   cantidad = int(data.get("cantidad", 1))
-  imagen_comprobante = data.get(
-      "imagen_comprobante", ""
-  )  # Foto del comprobante en Base64
+  imagen_comprobante = data.get("imagen_comprobante", "")
 
   if not nombre or not telefono or not cedula or cantidad < 1:
     return jsonify({"error": "Todos los campos son obligatorios."}), 400
@@ -67,16 +64,11 @@ def comprar():
     return jsonify({"error": "El sorteo seleccionado ya no está activo."}), 400
 
   primer_numero = contador_boletos_por_sorteo.get(sorteo_id, 1)
-
-  # Verificar si hay suficientes boletos disponibles
   emitidos_actuales = primer_numero - 1
   if (emitidos_actuales + cantidad) > sorteo_activo["limite_boletos"]:
     return (
         jsonify({
-            "error": (
-                "Lo sentimos, no hay suficientes boletos disponibles para esa"
-                " cantidad."
-            )
+            "error": "No hay suficientes boletos disponibles para esa cantidad."
         }),
         400,
     )
@@ -114,7 +106,7 @@ def comprar():
 
   return (
       jsonify({
-          "mensaje": f"¡Compra de {cantidad} boleto(s) registrada con éxito!",
+          "mensaje": f"¡Compra de {cantidad} boleto(s) registrada!",
           "rango": rango_str,
       }),
       200,
@@ -152,6 +144,48 @@ def admin_datos():
   if not verificar_admin(data):
     return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
   return jsonify({"sorteos": sorteos_db, "boletos": boletos_db})
+
+
+@app.route("/api/admin/crear-sorteo", methods=["POST"])
+def admin_crear_sorteo():
+  data = request.json
+  if not verificar_admin(data):
+    return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+
+  titulo = data.get("titulo")
+  precio = int(data.get("precio", 0))
+  limite_boletos = int(data.get("limite_boletos", 5000))
+
+  if not titulo:
+    return jsonify({"error": "El título es obligatorio"}), 400
+
+  nuevo_id = len(sorteos_db) + 1
+  nuevo_sorteo = {
+      "id": nuevo_id,
+      "titulo": titulo,
+      "precio": precio,
+      "limite_boletos": limite_boletos,
+      "estado": "Activo",
+  }
+  sorteos_db.append(nuevo_sorteo)
+  contador_boletos_por_sorteo[nuevo_id] = 1
+
+  return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
+
+
+@app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
+def admin_finalizar_sorteo(sorteo_id):
+  data = request.json
+  if not verificar_admin(data):
+    return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+
+  for s in sorteos_db:
+    if s["id"] == sorteo_id:
+      s["estado"] = "Finalizado"
+      return jsonify(
+          {"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."}
+      )
+  return jsonify({"error": "Sorteo no encontrado"}), 404
 
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
