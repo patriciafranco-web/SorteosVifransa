@@ -5,16 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Control - Sorteos Vifran S.A.</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librería Chart.js para el gráfico circular -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen p-6">
-    <div class="max-w-6xl mx-auto">
-        <header class="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+    <div class="max-w-6xl mx-auto space-y-8">
+        <header class="flex justify-between items-center border-b border-slate-800 pb-4">
             <h1 class="text-2xl font-extrabold text-amber-400">🔒 Panel de Control - Sorteos Vifran S.A.</h1>
             <button onclick="cerrarSesion()" class="bg-rose-600 hover:bg-rose-700 text-sm font-bold px-4 py-2 rounded transition">Cerrar Sesión</button>
         </header>
 
         <!-- Crear Nuevo Sorteo con Límite de Boletos -->
-        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-8">
+        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
             <h2 class="text-xl font-bold mb-4 text-amber-300">➕ Crear Nuevo Sorteo / Rifa</h2>
             <form id="formNuevoSorteo" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -36,26 +38,56 @@
             <div id="resCrearSorteo" class="mt-4 text-center font-semibold"></div>
         </div>
 
-        <!-- Listado y Validación de Ventas / Comprobantes -->
+        <!-- Sección de Estadísticas, Control y Gráfico de Recaudación -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-                <h2 class="text-xl font-bold mb-4 text-amber-300">📊 Control de Sorteos Activos</h2>
+                <h2 class="text-xl font-bold mb-4 text-amber-300">📊 Control de Ganancias por Sorteo</h2>
                 <div id="listaSorteosAdmin" class="space-y-4">
                     <!-- Se llena dinámicamente -->
                 </div>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-                <h2 class="text-xl font-bold mb-4 text-amber-300">🧾 Validación de Comprobantes y Lotes</h2>
-                <div id="listaLotesPendientes" class="space-y-4">
-                    <!-- Se llena dinámicamente con las fotos y botones de aprobar -->
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 flex flex-col items-center justify-center">
+                <h2 class="text-xl font-bold mb-4 text-amber-300 self-start">📈 Distribución de Recaudación Global</h2>
+                <div class="w-64 h-64 relative">
+                    <canvas id="graficoRecaudacion"></canvas>
                 </div>
+            </div>
+        </div>
+
+        <!-- Validación de Comprobantes y Lotes -->
+        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+            <h2 class="text-xl font-bold mb-4 text-amber-300">🧾 Validación de Comprobantes y Lotes Pendientes</h2>
+            <div id="listaLotesPendientes" class="space-y-4">
+                <!-- Se llena dinámicamente con las fotos y botones de aprobar -->
+            </div>
+        </div>
+
+        <!-- Historial Completo de Todas las Boletas Vendidas -->
+        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+            <h2 class="text-xl font-bold mb-4 text-amber-300">📋 Historial General de Boletos Vendidos</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-700 text-slate-400 text-sm">
+                            <th class="p-3">Boleto #</th>
+                            <th class="p-3">Comprador</th>
+                            <th class="p-3">Cédula / Teléfono</th>
+                            <th class="p-3">Estado</th>
+                            <th class="p-3">Impreso</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaHistorialBoletos" class="text-sm divide-y divide-slate-700/50">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
     <script>
         const passwordAdmin = "vifran2026admin";
+        let miGrafico = null;
 
         async function cargarDatosAdmin() {
             const res = await fetch('/api/admin/datos', {
@@ -66,37 +98,68 @@
             if(res.ok) {
                 const data = await res.json();
                 
-                // Renderizar sorteos
+                const estadisticasSorteos = {};
+                data.sorteos.forEach(s => {
+                    estadisticasSorteos[s.id] = { ...s, aprobadosCount: 0, recaudacion: 0 };
+                });
+
+                data.boletos.forEach(b => {
+                    if(b.estado === 'Aprobado' && estadisticasSorteos[b.sorteo_id]) {
+                        estadisticasSorteos[b.sorteo_id].aprobadosCount++;
+                        estadisticasSorteos[b.sorteo_id].recaudacion += estadisticasSorteos[b.sorteo_id].precio;
+                    }
+                });
+
+                // 1. Renderizar lista de control de sorteos
                 const divSorteos = document.getElementById('listaSorteosAdmin');
                 divSorteos.innerHTML = '';
-                data.sorteos.forEach(s => {
+                const labelsGrafico = [];
+                const datosGrafico = [];
+                const coloresGrafico = ['#f59e0b', '#10b981', '#6366f1', '#ec4899', '#3b82f6'];
+
+                Object.values(estadisticasSorteos).forEach((s) => {
+                    labelsGrafico.push(s.titulo);
+                    datosGrafico.push(s.recaudacion);
+
                     divSorteos.innerHTML += `
                         <div class="bg-slate-900 p-4 rounded border border-slate-700 flex justify-between items-center">
                             <div>
                                 <p class="font-bold text-amber-400">${s.titulo}</p>
-                                <p class="text-xs text-slate-400">Precio: Gs. ${s.precio} | Límite: ${s.limite_boletos} boletos</p>
+                                <p class="text-xs text-slate-400">Aprobados: ${s.aprobadosCount} boletos | Límite: ${s.limite_boletos}</p>
+                                <p class="text-sm font-extrabold text-emerald-400 mt-1">Gs. ${s.recaudacion.toLocaleString()}</p>
                                 <span class="inline-block mt-2 px-2 py-0.5 rounded text-xs font-bold ${s.estado === 'Activo' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${s.estado}</span>
                             </div>
+                            ${s.estado === 'Activo' ? `<button onclick="finalizarSorteo(${s.id})" class="text-xs font-bold text-rose-400 hover:text-rose-300 underline">Finalizar</button>` : ''}
                         </div>`;
                 });
 
-                // Renderizar lotes pendientes con comprobantes
+                // 2. Renderizar Gráfico Redondo
+                const ctx = document.getElementById('graficoRecaudacion').getContext('2d');
+                if(miGrafico) miGrafico.destroy();
+                miGrafico = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labelsGrafico,
+                        datasets: [{ data: datosGrafico, backgroundColor: coloresGrafico.slice(0, labelsGrafico.length), borderWidth: 0 }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 } } } }
+                    }
+                });
+
+                // 3. Renderizar lotes pendientes con comprobantes
                 const divPendientes = document.getElementById('listaLotesPendientes');
                 divPendientes.innerHTML = '';
-                
-                // Agrupar boletos pendientes por lote
                 const lotesPendientesMap = {};
                 data.boletos.forEach(b => {
                     if(b.estado === 'Pendiente') {
                         if(!lotesPendientesMap[b.lote_id]) {
                             lotesPendientesMap[b.lote_id] = {
-                                lote_id: b.lote_id,
-                                nombre: b.nombre,
-                                cedula: b.cedula,
-                                telefono: b.telefono,
-                                cantidad: b.cantidad_lote,
-                                imagen: b.imagen_comprobante,
-                                boletos: []
+                                lote_id: b.lote_id, nombre: b.nombre, cedula: b.cedula,
+                                telefono: b.telefono, cantidad: b.cantidad_lote,
+                                imagen: b.imagen_comprobante, boletos: []
                             };
                         }
                         lotesPendientesMap[b.lote_id].boletos.push(b.id);
@@ -122,14 +185,32 @@
                             </div>`;
                     });
                 }
+
+                // 4. Renderizar Historial General de Boletos
+                const tablaHistorial = document.getElementById('tablaHistorialBoletos');
+                tablaHistorial.innerHTML = '';
+                if(data.boletos.length === 0) {
+                    tablaHistorial.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay boletos registrados aún.</td></tr>`;
+                } else {
+                    data.boletos.forEach(b => {
+                        tablaHistorial.innerHTML += `
+                            <tr class="hover:bg-slate-700/30">
+                                <td class="p-3 font-bold text-amber-400">#${b.id}</td>
+                                <td class="p-3">${b.nombre}</td>
+                                <td class="p-3 text-slate-300">CI: ${b.cedula}<br><span class="text-xs text-slate-400">Tel: ${b.telefono}</span></td>
+                                <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${b.estado}</span></td>
+                                <td class="p-3 text-xs">${b.impreso ? '<span class="text-emerald-400 font-bold">Impreso</span>' : '<span class="text-amber-400">Pendiente</span>'}</td>
+                            </tr>`;
+                    });
+                }
             }
         }
 
         async function aprobarLote(loteId) {
             const res = await fetch(`/api/admin/aprobar-lote/${loteId}`, {
                 method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ usuario: 'admin', password: passwordAdmin })
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: 'admin', password: passwordAdmin })
             });
             const data = await res.json();
             if(res.ok) {
@@ -137,6 +218,22 @@
                 cargarDatosAdmin();
             } else {
                 alert(data.error || "Error al aprobar lote");
+            }
+        }
+
+        async function finalizarSorteo(sorteoId) {
+            if(!confirm("¿Estás seguro de finalizar este sorteo? Dejará de estar activo en la web principal.")) return;
+            const res = await fetch(`/api/admin/finalizar-sorteo/${sorteoId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: 'admin', password: passwordAdmin })
+            });
+            const data = await res.json();
+            if(res.ok) {
+                alert(data.mensaje);
+                cargarDatosAdmin();
+            } else {
+                alert(data.error || "Error al finalizar sorteo");
             }
         }
 
