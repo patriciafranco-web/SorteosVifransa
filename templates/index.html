@@ -6,62 +6,70 @@
     <title>Sorteos Vifran Group S.A. - Plataforma Oficial</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen">
-    <div class="max-w-xl mx-auto p-4 md:p-6">
-        <header class="text-center my-6 space-y-3">
+<body class="bg-slate-900 text-white min-h-screen p-4 md:p-6">
+    <div class="max-w-5xl mx-auto space-y-6">
+        <header class="text-center my-4 space-y-2">
             <h1 class="text-3xl font-extrabold text-amber-400">Sorteos Vifran Group S.A.</h1>
             <p class="text-slate-300 text-sm italic">"Tu suerte, nuestro compromiso"</p>
-            
-            <!-- Contenedor del Flyer con tamaño reducido y elegante -->
-            <div class="max-w-xs mx-auto rounded-xl overflow-hidden shadow-xl border-2 border-amber-500/50 bg-slate-800">
-                <img src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Sorteo de 4 iPhones - Vifran Group S.A." class="w-full h-auto object-cover">
-            </div>
         </header>
 
-        <!-- Formulario de Compra con Precio Fijo -->
-        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-8">
-            <h2 class="text-xl font-bold mb-2 text-amber-300">🎟️ Comprar Tu Boleto</h2>
-            <p class="text-xs text-amber-400/80 mb-4 font-semibold">Costo por boleto: Gs. 10.000</p>
+        <!-- Contenedor Principal: Flyer a un lado y Formulario al otro -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             
-            <form id="formCompra" class="space-y-4">
-                <input type="hidden" id="sorteoId" value="1">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Nombre Completo</label>
-                    <input type="text" id="nombre" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+            <!-- Columna Izquierda: Flyer Oficial -->
+            <div class="md:col-span-5 bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-700 text-center space-y-3">
+                <h2 class="text-lg font-bold text-amber-300">📱 El Gran Combo de iPhones</h2>
+                <div class="rounded-lg overflow-hidden shadow-md border border-slate-700 bg-slate-900">
+                    <img src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Sorteo de 4 iPhones - Vifran Group S.A." class="w-full h-auto object-cover">
                 </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Cédula de Identidad</label>
-                    <input type="text" id="cedula" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Teléfono / WhatsApp</label>
-                    <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Cantidad de Boletos</label>
-                    <input type="number" id="cantidad" min="1" value="1" oninput="calcularTotal()" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white font-bold text-amber-400">
-                </div>
-                <div class="bg-slate-900 p-3 rounded border border-slate-700 text-center">
-                    <p class="text-xs text-slate-400">TOTAL A PAGAR:</p>
-                    <p id="totalPagar" class="text-xl font-extrabold text-amber-400">Gs. 10.000</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Adjuntar Comprobante de Transferencia (Foto)</label>
-                    <input type="file" id="fotoComprobante" accept="image/*" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-600">
-                </div>
-                <div class="bg-slate-900 p-4 rounded border border-slate-700 text-sm text-slate-300">
-                    <p class="font-bold text-amber-400 mb-1">Datos Bancarios para Transferencia:</p>
-                    <p>Banco Familiar / Visión</p>
-                    <p>Nro. Cuenta: 123456789</p>
-                    <p>Titular: Vifran Group S.A.</p>
-                </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 font-bold py-3 rounded text-slate-950 transition">Registrar Compra y Participar</button>
-            </form>
-            <div id="resultadoCompra" class="mt-4 text-center font-semibold"></div>
+                <p class="text-xs text-slate-400">¡Participa y lleva los 4 modelos de iPhone en un solo sorteo!</p>
+            </div>
+
+            <!-- Columna Derecha: Formulario de Compra -->
+            <div class="md:col-span-7 bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-xl font-bold mb-1 text-amber-300">🎟️ Comprar Tu Boleto</h2>
+                <p class="text-xs text-amber-400/80 mb-4 font-semibold">Costo por boleto: Gs. <span id="textoPrecioUnitario">10.000</span></p>
+                
+                <form id="formCompra" class="space-y-4">
+                    <input type="hidden" id="sorteoId" value="1">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Nombre Completo</label>
+                        <input type="text" id="nombre" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Cédula de Identidad</label>
+                        <input type="text" id="cedula" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Teléfono / WhatsApp</label>
+                        <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Cantidad de Boletos</label>
+                        <input type="number" id="cantidad" min="1" value="1" oninput="calcularTotal()" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white font-bold text-amber-400">
+                    </div>
+                    <div class="bg-slate-900 p-3 rounded border border-slate-700 text-center">
+                        <p class="text-xs text-slate-400">TOTAL A PAGAR:</p>
+                        <p id="totalPagar" class="text-xl font-extrabold text-amber-400">Gs. 10.000</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Adjuntar Comprobante de Transferencia (Foto)</label>
+                        <input type="file" id="fotoComprobante" accept="image/*" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-600">
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded border border-slate-700 text-sm text-slate-300">
+                        <p class="font-bold text-amber-400 mb-1">Datos Bancarios para Transferencia:</p>
+                        <p>Banco Familiar / Visión</p>
+                        <p>Nro. Cuenta: 123456789</p>
+                        <p>Titular: Vifran Group S.A.</p>
+                    </div>
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 font-bold py-3 rounded text-slate-950 transition">Registrar Compra y Participar</button>
+                </form>
+                <div id="resultadoCompra" class="mt-4 text-center font-semibold"></div>
+            </div>
         </div>
 
         <!-- Módulo de Consulta Pública -->
-        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+        <div class="max-w-xl mx-auto bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
             <h2 class="text-xl font-bold mb-4 text-amber-300">🔍 Consultar Mis Boletos</h2>
             <div class="flex gap-2">
                 <input type="text" id="terminoConsulta" placeholder="Ingresa tu Cédula o Teléfono" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
@@ -69,6 +77,11 @@
             </div>
             <div id="resultadoConsulta" class="mt-4 space-y-2"></div>
         </div>
+
+        <!-- Acceso Administrativo Discreto -->
+        <footer class="text-center pt-4 pb-8 border-t border-slate-800">
+            <a href="/admin" class="text-xs text-slate-500 hover:text-amber-400 transition">🔒 Acceso Administrativo</a>
+        </footer>
     </div>
 
     <script>
@@ -81,6 +94,7 @@
                 const sorteo = data.sorteos[0];
                 document.getElementById('sorteoId').value = sorteo.id;
                 precioBase = sorteo.precio;
+                document.getElementById('textoPrecioUnitario').innerText = precioBase.toLocaleString();
                 calcularTotal();
             }
         }
