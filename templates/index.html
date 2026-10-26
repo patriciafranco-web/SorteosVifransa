@@ -3,22 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sorteos Vifran S.A. - Plataforma Oficial</title>
+    <title>Sorteos Vifran Group S.A. - Plataforma Oficial</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
-    <div class="max-w-xl mx-auto p-6">
-        <header class="text-center my-8">
-            <h1 class="text-3xl font-extrabold text-amber-400">Sorteos Vifran S.A.</h1>
-            <p id="tituloSorteo" class="text-slate-300 mt-2">Cargando sorteo activo...</p>
-            <div id="contadorBadge" class="inline-block bg-amber-500/20 text-amber-300 border border-amber-500/50 px-4 py-1 rounded-full text-sm font-semibold mt-4">
-                ⏳ Actualizando disponibilidad...
+    <div class="max-w-xl mx-auto p-4 md:p-6">
+        <header class="text-center my-6 space-y-4">
+            <h1 class="text-3xl font-extrabold text-amber-400">Sorteos Vifran Group S.A.</h1>
+            <p class="text-slate-300 text-sm italic">"Tu suerte, nuestro compromiso"</p>
+            
+            <!-- Contenedor del Flyer Oficial -->
+            <div class="rounded-2xl overflow-hidden shadow-2xl border-2 border-amber-500/50 bg-slate-800">
+                <img src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Sorteo de 4 iPhones - Vifran Group S.A." class="w-full h-auto object-cover">
+            </div>
+
+            <div id="contadorBadge" class="inline-block bg-amber-500/20 text-amber-300 border border-amber-500/50 px-4 py-1.5 rounded-full text-sm font-semibold mt-2">
+                ⏳ Cargando disponibilidad de boletos...
             </div>
         </header>
 
-        <!-- Formulario de Compra -->
+        <!-- Formulario de Compra con Precio Fijo -->
         <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-8">
-            <h2 class="text-xl font-bold mb-4 text-amber-300">🎟️ Comprar Boleto</h2>
+            <h2 class="text-xl font-bold mb-2 text-amber-300">🎟️ Comprar Tu Boleto</h2>
+            <p class="text-xs text-amber-400/80 mb-4 font-semibold">Costo por boleto: Gs. 10.000</p>
+            
             <form id="formCompra" class="space-y-4">
                 <input type="hidden" id="sorteoId" value="1">
                 <div>
@@ -34,12 +42,12 @@
                     <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">Cantidad de Boletos (Gs. <span id="precioBoleto">2000</span> c/u)</label>
+                    <label class="block text-sm font-medium mb-1">Cantidad de Boletos</label>
                     <input type="number" id="cantidad" min="1" value="1" oninput="calcularTotal()" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white font-bold text-amber-400">
                 </div>
                 <div class="bg-slate-900 p-3 rounded border border-slate-700 text-center">
                     <p class="text-xs text-slate-400">TOTAL A PAGAR:</p>
-                    <p id="totalPagar" class="text-xl font-extrabold text-amber-400">Gs. 2.000</p>
+                    <p id="totalPagar" class="text-xl font-extrabold text-amber-400">Gs. 10.000</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Adjuntar Comprobante de Transferencia (Foto)</label>
@@ -49,7 +57,7 @@
                     <p class="font-bold text-amber-400 mb-1">Datos Bancarios para Transferencia:</p>
                     <p>Banco Familiar / Visión</p>
                     <p>Nro. Cuenta: 123456789</p>
-                    <p>Titular: Vifran S.A.</p>
+                    <p>Titular: Vifran Group S.A.</p>
                 </div>
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 font-bold py-3 rounded text-slate-950 transition">Registrar Compra y Participar</button>
             </form>
@@ -68,32 +76,28 @@
     </div>
 
     <script>
-        let precioUnitario = 2000;
+        let precioBase = 10000;
 
         async function cargarSorteoActivo() {
             const res = await fetch('/api/sorteos');
             const data = await res.json();
             if(data.sorteos && data.sorteos.length > 0) {
-                const sorteo = data.sorteos[0]; // Toma el primer sorteo activo
+                const sorteo = data.sorteos[0];
                 document.getElementById('sorteoId').value = sorteo.id;
-                document.getElementById('tituloSorteo').innerText = `¡Gana ${sorteo.titulo} participando hoy!`;
-                document.getElementById('precioBoleto').innerText = sorteo.precio.toLocaleString();
-                precioUnitario = sorteo.precio;
+                precioBase = sorteo.precio; // Precio exacto configurado en el admin
                 document.getElementById('contadorBadge').innerText = `🔥 Quedan ${sorteo.boletos_disponibles} boletos disponibles`;
                 calcularTotal();
             } else {
-                document.getElementById('tituloSorteo').innerText = "No hay sorteos activos en este momento.";
                 document.getElementById('contadorBadge').innerText = "Sorteo finalizado";
             }
         }
 
         function calcularTotal() {
             const cant = parseInt(document.getElementById('cantidad').value) || 1;
-            const total = cant * precioUnitario;
+            const total = cant * precioBase; // Cálculo directo y lineal
             document.getElementById('totalPagar').innerText = `Gs. ${total.toLocaleString()}`;
         }
 
-        // Convertir la imagen seleccionada a Base64 para guardarla fácilmente
         function convertirImagenABase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -114,9 +118,7 @@
             if(fileInput.files.length > 0) {
                 try {
                     imagenBase64 = await convertirImagenABase64(fileInput.files[0]);
-                } catch(err) {
-                    console.error("Error al leer imagen", err);
-                }
+                } catch(err) { console.error("Error al leer imagen", err); }
             }
 
             const res = await fetch('/api/comprar', {
@@ -169,9 +171,7 @@
             }
         }
 
-        // Cargar datos al abrir la página
         cargarSorteoActivo();
-        // Actualizar el contador cada 10 segundos automáticamente
         setInterval(cargarSorteoActivo, 10000);
     </script>
 </body>
