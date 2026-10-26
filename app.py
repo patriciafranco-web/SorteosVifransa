@@ -5,9 +5,9 @@ app = Flask(__name__)
 # Configuración inicial de sorteos
 sorteos_db = [{
     "id": 1,
-    "titulo": "Gran Sorteo: Combo iPhone Pro Max",
-    "precio": 2000,
-    "limite_boletos": 5000,
+    "titulo": "Gran Sorteo: 4 iPhones",
+    "precio": 10000,
+    "limite_boletos": 1000,
     "estado": "Activo",
 }]
 
@@ -15,8 +15,11 @@ boletos_db = []
 contador_boletos_por_sorteo = {1: 1}
 lote_contador = 1
 
-ADMIN_USER = "admin"
-ADMIN_PASSWORD = "vifran2026admin"
+# Diccionario de credenciales para múltiples administradores
+ADMIN_USERS = {
+    "patriciafranco": "Vifran2026*Secure$",
+    "edgarfranco": "Vifran2026*Secure$",
+}
 
 
 @app.route("/")
@@ -34,10 +37,7 @@ def obtener_sorteos():
   activos = []
   for s in sorteos_db:
     if s["estado"] == "Activo":
-      emitidos = contador_boletos_por_sorteo.get(s["id"], 1) - 1
-      disponibles = s["limite_boletos"] - emitidos
       sorteo_info = s.copy()
-      sorteo_info["boletos_disponibles"] = max(0, disponibles)
       activos.append(sorteo_info)
   return jsonify({"sorteos": activos})
 
@@ -132,10 +132,11 @@ def consultar():
 
 
 def verificar_admin(data):
-  return (
-      data.get("usuario") == ADMIN_USER
-      and data.get("password") == ADMIN_PASSWORD
-  )
+  usuario = data.get("usuario")
+  password = data.get("password")
+  if usuario in ADMIN_USERS and ADMIN_USERS[usuario] == password:
+    return True
+  return False
 
 
 @app.route("/api/admin/datos", methods=["POST"])
@@ -154,7 +155,7 @@ def admin_crear_sorteo():
 
   titulo = data.get("titulo")
   precio = int(data.get("precio", 0))
-  limite_boletos = int(data.get("limite_boletos", 5000))
+  limite_boletos = int(data.get("limite_boletos", 1000))
 
   if not titulo:
     return jsonify({"error": "El título es obligatorio"}), 400
