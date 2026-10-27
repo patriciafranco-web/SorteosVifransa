@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, render_template_string, request
 
 app = Flask(__name__)
 
@@ -89,7 +89,7 @@ def comprar():
         "cantidad_lote": cantidad,
         "imagen_comprobante": imagen_comprobante,
         "estado": "Pendiente",
-        "impreso": False,
+        "impreso": False,  # Control para la impresora térmica
     }
     boletos_db.append(nuevo_boleto)
     nuevos_boletos.append(nuevo_boleto)
@@ -202,6 +202,112 @@ def admin_aprobar_lote(lote_id):
       aprobados += 1
 
   return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
+
+
+# ==========================================
+# RUTAS NUEVAS PARA LA IMPRESIÓN WEB AUTOMÁTICA
+# ==========================================
+
+
+@app.route("/api/pendientes-impresion", methods=["GET"])
+def obtener_pendientes_impresion():
+  pendientes = []
+  for b in boletos_db:
+    # Si el boleto está aprobado pero aún no se imprimió
+    if b["estado"] == "Aprobado" and not b.get("impreso", False):
+      # Buscar el título del sorteo correspondiente
+      sorteo_titulo = "Sorteo Vifran"
+      for s in sorteos_db:
+        if s["id"] == b["sorteo_id"]:
+          sorteo_titulo = s["titulo"]
+          break
+
+      pendientes.append({
+          "id": b["id"],
+          "sorteo_id": b["sorteo_id"],
+          "sorteo_titulo": sorteo_titulo,
+          "nombre": b["nombre"],
+          "cedula": b["cedula"],
+          "telefono": b["telefono"],
+      })
+  return jsonify(pendientes), 200
+
+
+@app.route("/api/marcar-impreso/<int:boleto_id>", methods=["POST"])
+def marcar_como_impreso(boleto_id):
+  for b in boletos_db:
+    if b["id"] == boleto_id:
+      b["impreso"] = True
+  return jsonify({"status": "success"}), 200
+
+
+@app.route("/impresion")
+def vista_impresion_web():
+  return render_template_string("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Impresión Automática - Sorteos Vifran</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 30px; background: #f4f4f4; }
+                .card { background: white; padding: 20px; border-radius: 8px; max-width: 400px; margin: 0 auto; box-shadow: 0px 2px 10px rgba(0,0,0,0.1); }
+                .ticket { font-family: monospace; text-align: left; border: 1px dashed #333; padding: 15px; margin-top: 15px; background: #fff; }
+                @media print {
+                    body { background: none; padding: 0; }
+                    .no-print { display: none; }
+                    .ticket { border: none; margin: 0; padding: 0; width: 100%; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="card no-print">
+                <h2>🖨️ Sistema de Impresión Vifran</h2>
+                <p>Mantén esta pestaña abierta en Google Chrome.</p>
+                <div id="status" style="color: #27ae60; font-weight: bold;">🟢 Conectado y esperando tickets...</div>
+            </div>
+            
+            <div id="ticket-container"></div>
+
+            <script>
+                async function verificarPendientes() {
+                    try {
+                        let res = await fetch('/api/pendientes-impresion');
+                        if (res.ok) {
+                            let pendientes = await res.json();
+                            for (let boleto of pendientes) {
+                                mostrarEImprimir(boleto);
+                                await fetch(`/api/marcar-impreso/${boleto.id}`, { method: 'POST' });
+                            }
+                        }
+                    } catch (e) {
+                        document.getElementById('status').innerText = "🔴 Reconectando con el servidor...";
+                    }
+                }
+
+                function mostrarEImprimir(boleto) {
+                    let container = document.getElementById('ticket-container');
+                    container.innerHTML = `
+                        <div class="ticket">
+                            <h3 style="text-align:center; margin:0;">SORTEOS VIFRAN S.A.</h3>
+                            <p style="text-align:center; margin:5px 0;">--------------------------------</p>
+                            <p><b>Sorteo:</b> ${boleto.sorteo_titulo || 'Sorteo'}</p>
+                            <p><b>Boleto N°:</b> #${String(boleto.id).padStart(4, '0')}</p>
+                            <p><b>Cliente:</b> ${boleto.nombre}</p>
+                            <p><b>Cédula:</b> ${boleto.cedula}</p>
+                            <p><b>Teléfono:</b> ${boleto.telefono}</p>
+                            <p style="text-align:center; margin:5px 0;">--------------------------------</p>
+                            <p style="text-align:center; margin:0;"><b>LISTO PARA EL BAUL</b></p>
+                        </div>
+                    `;
+                    window.print();
+                }
+
+                setInterval(verificarPendientes, 4000);
+            </script>
+        </body>
+        </html>
+    """)
 
 
 if __name__ == "__main__":
