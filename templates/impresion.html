@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Impresión Ticket Vifran</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librería local ultra rápida para generar QR reales sin depender de llamadas de red lentas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         @media print {
             @page {
@@ -12,32 +14,38 @@
             }
             body {
                 margin: 0;
-                padding: 0;
+                padding: 1px;
                 font-family: 'Courier New', monospace;
-                font-size: 9px;
-                width: 50mm;
+                font-size: 10px;
+                width: 52mm;
                 color: black;
                 line-height: 1.1;
             }
             .no-print { display: none !important; }
             .center { text-align: center; }
-            .logo { font-size: 13px; font-weight: bold; text-transform: uppercase; }
+            .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; }
             .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
-            .line { border-bottom: 1px dashed black; margin: 2px 0; }
+            .line { border-bottom: 1px dashed black; margin: 3px 0; }
             .bold { font-weight: bold; }
             
-            /* QR optimizado y compacto para asegurar que salga siempre */
-            .qr-container { text-align: center; margin: 3px 0; }
-            .qr-code { width: 50px; height: 50px; display: inline-block; }
+            /* Contenedor del QR real */
+            .qr-container {
+                display: flex;
+                justify-content: center;
+                margin: 4px 0;
+            }
+            .qr-container canvas, .qr-container img {
+                width: 70px !important;
+                height: 70px !important;
+                display: block;
+            }
+
+            .numero-grande { font-size: 18px; font-weight: bold; text-align: center; margin: 3px 0; padding: 2px; border: 2px dashed black; }
             
-            .numero-grande { font-size: 16px; font-weight: bold; text-align: center; margin: 3px 0; padding: 1px; border: 1px dashed black; }
-            
-            /* Bloque individual asegurando que todo el contenido entre sin cortarse */
             .ticket-individual { 
                 page-break-after: always; 
                 break-after: page; 
-                height: auto;
-                padding-bottom: 15px;
+                padding-bottom: 12px;
             }
         }
         body { font-family: monospace; font-size: 12px; padding: 10px; }
@@ -93,27 +101,29 @@
         function imprimirBoletosIndividuales(boleto) {
             const ventanaImpresion = window.open('', '_blank', 'width=300,height=800');
             const numeros = boleto.numeros_asignados || [boleto.id];
-            let contenidoHtml = '';
-
-            numeros.forEach((num) => {
-                contenidoHtml += `
+            
+            // Creamos un identificador único para los contenedores de los QR
+            let tiquetsHtml = '';
+            numeros.forEach((num, index) => {
+                tiquetsHtml += `
                     <div class="ticket-individual">
                         <div class="center logo">Sorteos Vifran</div>
                         <div class="center sub-logo">Group S.A.</div>
                         <div class="line"></div>
-                        <div style="font-size: 8px;">Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
-                        <div class="center" style="font-size: 7px;">NUMERO DE BOLETO:</div>
+                        <div>Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
+                        <div class="center">NUMERO DE BOLETO:</div>
                         <div class="numero-grande">#${String(num).padStart(4, '0')}</div>
                         <div class="line"></div>
                         <div>Cliente: ${boleto.nombre}</div>
                         <div>CI: ${boleto.cedula} | Cel: ${boleto.telefono}</div>
                         <div>Fecha: ${boleto.fecha_venta || 'Reciente'}</div>
                         <div class="line"></div>
-                        <div class="qr-container">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://sorteosvifransa.onrender.com/validar/${num}" alt="QR" class="qr-code">
-                        </div>
-                        <div class="center bold" style="font-size: 8px;">MUCHA SUERTE!</div>
-                        <div class="center" style="font-size: 7px;">Gracias por participar.</div>
+                        
+                        <!-- Contenedor donde se dibujará el QR real -->
+                        <div class="qr-container" id="qr-${num}-${index}"></div>
+                        
+                        <div class="center bold">MUCHA SUERTE!</div>
+                        <div class="center">Gracias por participar.</div>
                     </div>
                 `;
             });
@@ -121,32 +131,53 @@
             ventanaImpresion.document.write(`
                 <html>
                 <head>
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
                     <style>
                         @page { margin: 0; size: 58mm auto; }
-                        body { margin: 0; padding: 2px; font-family: 'Courier New', monospace; font-size: 9px; width: 50mm; color: black; line-height: 1.1; }
+                        body { margin: 0; padding: 1px; font-family: 'Courier New', monospace; font-size: 10px; width: 52mm; color: black; line-height: 1.1; }
                         .center { text-align: center; }
-                        .logo { font-size: 13px; font-weight: bold; text-transform: uppercase; }
+                        .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; }
                         .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
-                        .line { border-bottom: 1px dashed black; margin: 2px 0; }
+                        .line { border-bottom: 1px dashed black; margin: 3px 0; }
                         .bold { font-weight: bold; }
-                        .qr-container { text-align: center; margin: 3px 0; }
-                        .qr-code { width: 50px; height: 50px; display: inline-block; }
-                        .numero-grande { font-size: 16px; font-weight: bold; text-align: center; margin: 3px 0; padding: 1px; border: 1px dashed black; }
-                        .ticket-individual { page-break-after: always; break-after: page; height: auto; padding-bottom: 15px; }
+                        .qr-container { display: flex; justify-content: center; margin: 4px 0; }
+                        .qr-container canvas, .qr-container img { width: 70px !important; height: 70px !important; display: block; }
+                        .numero-grande { font-size: 18px; font-weight: bold; text-align: center; margin: 3px 0; padding: 2px; border: 2px dashed black; }
+                        .ticket-individual { page-break-after: always; break-after: page; padding-bottom: 12px; }
                     </style>
                 </head>
                 <body>
-                    ${contenidoHtml}
+                    ${tiquetsHtml}
+                    <script>
+                        // Generar los QR reales de manera instantánea en la memoria local
+                        window.onload = function() {
+                            const numerosList = ${JSON.stringify(numeros)};
+                            numerosList.forEach((num, index) => {
+                                const el = document.getElementById('qr-' + num + '-' + index);
+                                if (el) {
+                                    new QRCode(el, {
+                                        text: "https://sorteosvifransa.onrender.com/validar/" + num,
+                                        width: 70,
+                                        height: 70,
+                                        colorDark : "#000000",
+                                        colorLight : "#ffffff",
+                                        correctLevel : QRCode.CorrectLevel.L
+                                    });
+                                }
+                            });
+
+                            // Esperar medio segundo a que se rendericen los QR y disparar la impresión
+                            setTimeout(() => {
+                                window.print();
+                                window.close();
+                            }, 500);
+                        };
+                    <\/script>
                 </body>
                 </html>
             `);
             ventanaImpresion.document.close();
             ventanaImpresion.focus();
-            
-            setTimeout(() => {
-                ventanaImpresion.print();
-                ventanaImpresion.close();
-            }, 600);
         }
 
         setInterval(verificarPendientes, 4000);
