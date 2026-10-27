@@ -7,34 +7,37 @@
     <style>
         @media print {
             @page {
-                margin: 2mm 2mm 8mm 2mm; /* Margen inferior para forzar separación física */
+                margin: 0;
                 size: 58mm auto;
             }
             body {
                 margin: 0;
                 padding: 0;
                 font-family: 'Courier New', monospace;
-                font-size: 10px;
-                width: 52mm;
+                font-size: 9px;
+                width: 50mm;
                 color: black;
-                line-height: 1.15;
+                line-height: 1.1;
             }
             .no-print { display: none !important; }
             .center { text-align: center; }
-            .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; }
-            .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 3px; }
-            .line { border-bottom: 1px dashed black; margin: 3px 0; }
+            .logo { font-size: 13px; font-weight: bold; text-transform: uppercase; }
+            .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
+            .line { border-bottom: 1px dashed black; margin: 2px 0; }
             .bold { font-weight: bold; }
-            /* QR asegurado en tamaño visible */
-            .qr-container { text-align: center; margin: 4px 0; }
-            .qr-code { width: 70px; height: 70px; display: inline-block; }
-            .numero-grande { font-size: 20px; font-weight: bold; text-align: center; margin: 4px 0; padding: 2px; border: 2px dashed black; }
             
-            /* Salto de página estricto con espacio para que la impresora corte limpio */
+            /* QR optimizado y compacto para asegurar que salga siempre */
+            .qr-container { text-align: center; margin: 3px 0; }
+            .qr-code { width: 50px; height: 50px; display: inline-block; }
+            
+            .numero-grande { font-size: 16px; font-weight: bold; text-align: center; margin: 3px 0; padding: 1px; border: 1px dashed black; }
+            
+            /* Bloque individual asegurando que todo el contenido entre sin cortarse */
             .ticket-individual { 
                 page-break-after: always; 
                 break-after: page; 
-                padding-bottom: 25px; /* Espacio extra para que no se superpongan */
+                height: auto;
+                padding-bottom: 15px;
             }
         }
         body { font-family: monospace; font-size: 12px; padding: 10px; }
@@ -98,8 +101,8 @@
                         <div class="center logo">Sorteos Vifran</div>
                         <div class="center sub-logo">Group S.A.</div>
                         <div class="line"></div>
-                        <div>Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
-                        <div class="center">NUMERO DE BOLETO:</div>
+                        <div style="font-size: 8px;">Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
+                        <div class="center" style="font-size: 7px;">NUMERO DE BOLETO:</div>
                         <div class="numero-grande">#${String(num).padStart(4, '0')}</div>
                         <div class="line"></div>
                         <div>Cliente: ${boleto.nombre}</div>
@@ -107,10 +110,10 @@
                         <div>Fecha: ${boleto.fecha_venta || 'Reciente'}</div>
                         <div class="line"></div>
                         <div class="qr-container">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://sorteosvifransa.onrender.com/validar/${num}" alt="QR" class="qr-code">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://sorteosvifransa.onrender.com/validar/${num}" alt="QR" class="qr-code">
                         </div>
-                        <div class="center bold">MUCHA SUERTE!</div>
-                        <div class="center">Gracias por participar.</div>
+                        <div class="center bold" style="font-size: 8px;">MUCHA SUERTE!</div>
+                        <div class="center" style="font-size: 7px;">Gracias por participar.</div>
                     </div>
                 `;
             });
@@ -119,17 +122,17 @@
                 <html>
                 <head>
                     <style>
-                        @page { margin: 2mm 2mm 8mm 2mm; size: 58mm auto; }
-                        body { margin: 0; padding: 0; font-family: 'Courier New', monospace; font-size: 10px; width: 52mm; color: black; line-height: 1.15; }
+                        @page { margin: 0; size: 58mm auto; }
+                        body { margin: 0; padding: 2px; font-family: 'Courier New', monospace; font-size: 9px; width: 50mm; color: black; line-height: 1.1; }
                         .center { text-align: center; }
-                        .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; }
-                        .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 3px; }
-                        .line { border-bottom: 1px dashed black; margin: 3px 0; }
+                        .logo { font-size: 13px; font-weight: bold; text-transform: uppercase; }
+                        .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
+                        .line { border-bottom: 1px dashed black; margin: 2px 0; }
                         .bold { font-weight: bold; }
-                        .qr-container { text-align: center; margin: 4px 0; }
-                        .qr-code { width: 70px; height: 70px; display: inline-block; }
-                        .numero-grande { font-size: 20px; font-weight: bold; text-align: center; margin: 4px 0; padding: 2px; border: 2px dashed black; }
-                        .ticket-individual { page-break-after: always; break-after: page; padding-bottom: 25px; }
+                        .qr-container { text-align: center; margin: 3px 0; }
+                        .qr-code { width: 50px; height: 50px; display: inline-block; }
+                        .numero-grande { font-size: 16px; font-weight: bold; text-align: center; margin: 3px 0; padding: 1px; border: 1px dashed black; }
+                        .ticket-individual { page-break-after: always; break-after: page; height: auto; padding-bottom: 15px; }
                     </style>
                 </head>
                 <body>
