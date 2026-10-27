@@ -1,1 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Impresión Ticket Vifran</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            @page {
+                margin: 0;
+                size: 58mm auto;
+            }
+            body {
+                margin: 0;
+                padding: 3px;
+                font-family: 'Courier New', monospace;
+                font-size: 10px;
+                width: 54mm;
+                color: black;
+                line-height: 1.2;
+            }
+            .no-print { display: none !important; }
+            .center { text-align: center; }
+            .logo { font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+            .sub-logo { font-size: 8px; text-transform: uppercase; margin-bottom: 6px; }
+            .line { border-bottom: 1px dashed black; margin: 4px 0; }
+            .bold { font-weight: bold; }
+            .qr-code { margin: 8px auto; width: 90px; height: 90px; display: block; }
+            .numeros-table { width: 100%; margin: 6px 0; border-collapse: collapse; }
+            .numeros-table td { text-align: center; font-size: 11px; font-weight: bold; padding: 2px; }
+            .numeros-table tr:nth-child(even) { background-color: #f0f0f0; }
+        }
+        body { font-family: monospace; font-size: 12px; padding: 10px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col items-center justify-center min-h-screen p-6 font-sans">
+
+    <!-- BOTÓN DE ACTIVACIÓN INICIAL (Obligatorio por seguridad del navegador) -->
+    <div id="setupModal" class="no-print fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-amber-500/50 p-8 rounded-2xl max-w-md text-center shadow-2xl space-y-4">
+            <h2 class="text-xl font-black text-amber-400">🖨️ Activar Impresión Automática</h2>
+            <p class="text-sm text-slate-300">
+                Para que los tickets salgan solos al aprobarse en la web, haz clic una sola vez en el botón de abajo.
+            </p>
+            <button onclick="activarSistema()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg text-lg">
+                🚀 Activar Sistema Ahora
+            </button>
+        </div>
+    </div>
+
+    <!-- PANEL DE ESPERA -->
+    <div class="no-print max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl text-center space-y-4">
+        <h1 class="text-xl font-bold text-amber-400">🎫 Sistema de Impresión Vifran</h1>
+        <div class="flex items-center justify-center space-x-2">
+            <span class="w-3 h-3 bg-emerald-500 rounded-full animate-ping"></span>
+            <span id="estadoTexto" class="text-sm font-semibold text-emerald-400">Conectado y esperando tickets...</span>
+        </div>
+        <p class="text-xs text-slate-500">Mantén esta pestaña abierta en la laptop de Ariel.</p>
+    </div>
+
+    <script>
+        let sistemaActivo = false;
+
+        function activarSistema() {
+            sistemaActivo = true;
+            document.getElementById('setupModal').classList.add('hidden');
+        }
+
+        async function verificarPendientes() {
+            if (!sistemaActivo) return;
+            try {
+                const res = await fetch('/api/pendientes-impresion');
+                if (res.ok) {
+                    const pendientes = await res.json();
+                    if (pendientes.length > 0) {
+                        for (let boleto of pendientes) {
+                            imprimirBoletoDirecto(boleto);
+                            await fetch(`/api/marcar-impreso/${boleto.id}/${boleto.sorteo_id}`, { method: 'POST' });
+                        }
+                    }
+                }
+            } catch (e) { console.error("Error al verificar:", e); }
+        }
+
+        function imprimirBoletoDirecto(boleto) {
+            const ventanaImpresion = window.open('', '_blank', 'width=300,height=800');
+            
+            // Organizar números asignados en dos columnas
+            const numeros = boleto.numeros_asignados || [boleto.id];
+            let tablaHtml = '<table class="numeros-table">';
+            for(let i = 0; i < numeros.length; i += 2) {
+                tablaHtml += '<tr>';
+                tablaHtml += `<td>#${String(numeros[i]).padStart(4, '0')}</td>`;
+                if(i + 1 < numeros.length) {
+                    tablaHtml += `<td>#${String(numeros[i+1]).padStart(4, '0')}</td>`;
+                } else {
+                    tablaHtml += '<td></td>';
+                }
+                tablaHtml += '</tr>';
+            }
+            tablaHtml += '</table>';
+
+            ventanaImpresion.document.write(`
+                <html>
+                <head>
+                    <style>
+                        @page { margin: 0; size: 58mm auto; }
+                        body { margin: 0; padding: 3px; font-family: 'Courier New', monospace; font-size: 10px; width: 54mm; color: black; line-height: 1.2; }
+                        .center { text-align: center; }
+                        .logo { font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+                        .sub-logo { font-size: 8px; text-transform: uppercase; margin-bottom: 6px; }
+                        .line { border-bottom: 1px dashed black; margin: 4px 0; }
+                        .bold { font-weight: bold; }
+                        .qr-code { margin: 8px auto; width: 90px; height: 90px; display: block; }
+                        .numeros-table { width: 100%; margin: 6px 0; border-collapse: collapse; }
+                        .numeros-table td { text-align: center; font-size: 11px; font-weight: bold; padding: 2px; }
+                        .numeros-table tr:nth-child(even) { background-color: #f0f0f0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="center logo">Sorteos Vifran</div>
+                    <div class="center sub-logo">Group S.A.</div>
+                    <div class="line"></div>
+                    <div>Venta: #${String(boleto.id).padStart(5, '0')}</div>
+                    <div>Cliente: ${boleto.nombre}</div>
+                    <div>CI: ${boleto.cedula}</div>
+                    <div>Cel: ${boleto.telefono}</div>
+                    <div>Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
+                    <div>Valor: ${boleto.valor_boleto || '10.000'} Gs.</div>
+                    <div class="line"></div>
+                    <div>Numeros:</div>
+                    ${tablaHtml}
+                    <div class="line"></div>
+                    <div>Total: ${boleto.total_pagado || '10.000'} Gs.</div>
+                    <div>Pago: ${boleto.metodo_pago || 'efectivo'}</div>
+                    <div>Vendedor: ${boleto.vendedor || 'Admin'}</div>
+                    <div>Fecha: ${boleto.fecha_venta || new Date().toLocaleString()}</div>
+                    <div class="line"></div>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://sorteosvifransa.onrender.com/validar/${boleto.id}" alt="QR" class="qr-code">
+                    <div class="center bold">MUCHA SUERTE!</div>
+                    <div class="center">Gracias por participar.</div>
+                    <br><br><br>
+                </body>
+                </html>
+            `);
+            ventanaImpresion.document.close();
+            ventanaImpresion.focus();
+            
+            setTimeout(() => {
+                ventanaImpresion.print();
+                ventanaImpresion.close();
+            }, 500);
+        }
+
+        setInterval(verificarPendientes, 4000);
+    </script>
+</body>
+</html>
 
