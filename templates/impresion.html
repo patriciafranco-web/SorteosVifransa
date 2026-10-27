@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Impresión Ticket Vifran</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librería local ultra rápida para generar QR reales sin depender de llamadas de red lentas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         @media print {
@@ -27,26 +26,10 @@
             .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
             .line { border-bottom: 1px dashed black; margin: 3px 0; }
             .bold { font-weight: bold; }
-            
-            /* Contenedor del QR real */
-            .qr-container {
-                display: flex;
-                justify-content: center;
-                margin: 4px 0;
-            }
-            .qr-container canvas, .qr-container img {
-                width: 70px !important;
-                height: 70px !important;
-                display: block;
-            }
-
+            .qr-container { display: flex; justify-content: center; margin: 4px 0; }
+            .qr-container canvas, .qr-container img { width: 70px !important; height: 70px !important; display: block; }
             .numero-grande { font-size: 18px; font-weight: bold; text-align: center; margin: 3px 0; padding: 2px; border: 2px dashed black; }
-            
-            .ticket-individual { 
-                page-break-after: always; 
-                break-after: page; 
-                padding-bottom: 12px;
-            }
+            .ticket-individual { page-break-after: always; break-after: page; padding-bottom: 12px; }
         }
         body { font-family: monospace; font-size: 12px; padding: 10px; }
     </style>
@@ -102,7 +85,6 @@
             const ventanaImpresion = window.open('', '_blank', 'width=300,height=800');
             const numeros = boleto.numeros_asignados || [boleto.id];
             
-            // Creamos un identificador único para los contenedores de los QR
             let tiquetsHtml = '';
             numeros.forEach((num, index) => {
                 tiquetsHtml += `
@@ -118,10 +100,7 @@
                         <div>CI: ${boleto.cedula} | Cel: ${boleto.telefono}</div>
                         <div>Fecha: ${boleto.fecha_venta || 'Reciente'}</div>
                         <div class="line"></div>
-                        
-                        <!-- Contenedor donde se dibujará el QR real -->
                         <div class="qr-container" id="qr-${num}-${index}"></div>
-                        
                         <div class="center bold">MUCHA SUERTE!</div>
                         <div class="center">Gracias por participar.</div>
                     </div>
@@ -149,7 +128,6 @@
                 <body>
                     ${tiquetsHtml}
                     <script>
-                        // Generar los QR reales de manera instantánea en la memoria local
                         window.onload = function() {
                             const numerosList = ${JSON.stringify(numeros)};
                             numerosList.forEach((num, index) => {
@@ -166,11 +144,11 @@
                                 }
                             });
 
-                            // Esperar medio segundo a que se rendericen los QR y disparar la impresión
-                            setTimeout(() => {
+                            // Disparo inmediato apenas se dibujan los elementos
+                            requestAnimationFrame(() => {
                                 window.print();
                                 window.close();
-                            }, 500);
+                            });
                         };
                     <\/script>
                 </body>
@@ -180,7 +158,8 @@
             ventanaImpresion.focus();
         }
 
-        setInterval(verificarPendientes, 4000);
+        // Reducido a 2 segundos para que detecte casi al instante las aprobaciones
+        setInterval(verificarPendientes, 2000);
     </script>
 </body>
 </html>
