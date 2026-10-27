@@ -25,10 +25,10 @@
             .sub-logo { font-size: 8px; text-transform: uppercase; margin-bottom: 6px; }
             .line { border-bottom: 1px dashed black; margin: 4px 0; }
             .bold { font-weight: bold; }
-            .qr-code { margin: 8px auto; width: 90px; height: 90px; display: block; }
-            .numeros-table { width: 100%; margin: 6px 0; border-collapse: collapse; }
-            .numeros-table td { text-align: center; font-size: 11px; font-weight: bold; padding: 2px; }
-            .numeros-table tr:nth-child(even) { background-color: #f0f0f0; }
+            .qr-code { margin: 6px auto; width: 80px; height: 80px; display: block; }
+            .numero-grande { font-size: 22px; font-weight: bold; text-align: center; margin: 8px 0; padding: 4px; border: 2px dashed black; }
+            /* Salto de página físico para que cada boleto salga en su propio papel cortado */
+            .ticket-individual { page-break-after: always; break-after: page; }
         }
         body { font-family: monospace; font-size: 12px; padding: 10px; }
     </style>
@@ -74,31 +74,43 @@
                     const pendientes = await res.json();
                     if (pendientes.length > 0) {
                         for (let boleto of pendientes) {
-                            imprimirBoletoDirecto(boleto);
-                            await fetch(`/api/marcar-impreso/${boleto.id}/${boleto.sorteo_id}`, { method: 'POST' });
+                            imprimirBoletosIndividuales(boleto);
+                            await fetch(`/api/marcar-impreso/${boleto.id}`, { method: 'POST' });
                         }
                     }
                 }
             } catch (e) { console.error("Error al verificar:", e); }
         }
 
-        function imprimirBoletoDirecto(boleto) {
+        function imprimirBoletosIndividuales(boleto) {
             const ventanaImpresion = window.open('', '_blank', 'width=300,height=800');
             
-            // Organizar números asignados en dos columnas
             const numeros = boleto.numeros_asignados || [boleto.id];
-            let tablaHtml = '<table class="numeros-table">';
-            for(let i = 0; i < numeros.length; i += 2) {
-                tablaHtml += '<tr>';
-                tablaHtml += `<td>#${String(numeros[i]).padStart(4, '0')}</td>`;
-                if(i + 1 < numeros.length) {
-                    tablaHtml += `<td>#${String(numeros[i+1]).padStart(4, '0')}</td>`;
-                } else {
-                    tablaHtml += '<td></td>';
-                }
-                tablaHtml += '</tr>';
-            }
-            tablaHtml += '</table>';
+            let contenidoHtml = '';
+
+            // Generar un ticket independiente por cada número del lote
+            numeros.forEach((num, index) => {
+                contenidoHtml += `
+                    <div class="ticket-individual">
+                        <div class="center logo">Sorteos Vifran</div>
+                        <div class="center sub-logo">Group S.A.</div>
+                        <div class="line"></div>
+                        <div>Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
+                        <div class="center">NUMERO DE BOLETO:</div>
+                        <div class="numero-grande">#${String(num).padStart(4, '0')}</div>
+                        <div class="line"></div>
+                        <div>Cliente: ${boleto.nombre}</div>
+                        <div>CI: ${boleto.cedula}</div>
+                        <div>Cel: ${boleto.telefono}</div>
+                        <div>Fecha: ${boleto.fecha_venta || new Date().toLocaleDateString()}</div>
+                        <div class="line"></div>
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://sorteosvifransa.onrender.com/validar/${num}" alt="QR" class="qr-code">
+                        <div class="center bold">MUCHA SUERTE!</div>
+                        <div class="center">Gracias por participar.</div>
+                        <br><br>
+                    </div>
+                `;
+            });
 
             ventanaImpresion.document.write(`
                 <html>
@@ -111,35 +123,13 @@
                         .sub-logo { font-size: 8px; text-transform: uppercase; margin-bottom: 6px; }
                         .line { border-bottom: 1px dashed black; margin: 4px 0; }
                         .bold { font-weight: bold; }
-                        .qr-code { margin: 8px auto; width: 90px; height: 90px; display: block; }
-                        .numeros-table { width: 100%; margin: 6px 0; border-collapse: collapse; }
-                        .numeros-table td { text-align: center; font-size: 11px; font-weight: bold; padding: 2px; }
-                        .numeros-table tr:nth-child(even) { background-color: #f0f0f0; }
+                        .qr-code { margin: 6px auto; width: 80px; height: 80px; display: block; }
+                        .numero-grande { font-size: 22px; font-weight: bold; text-align: center; margin: 8px 0; padding: 4px; border: 2px dashed black; }
+                        .ticket-individual { page-break-after: always; break-after: page; }
                     </style>
                 </head>
                 <body>
-                    <div class="center logo">Sorteos Vifran</div>
-                    <div class="center sub-logo">Group S.A.</div>
-                    <div class="line"></div>
-                    <div>Venta: #${String(boleto.id).padStart(5, '0')}</div>
-                    <div>Cliente: ${boleto.nombre}</div>
-                    <div>CI: ${boleto.cedula}</div>
-                    <div>Cel: ${boleto.telefono}</div>
-                    <div>Sorteo: ${boleto.sorteo_titulo || 'Sorteo'}</div>
-                    <div>Valor: ${boleto.valor_boleto || '10.000'} Gs.</div>
-                    <div class="line"></div>
-                    <div>Numeros:</div>
-                    ${tablaHtml}
-                    <div class="line"></div>
-                    <div>Total: ${boleto.total_pagado || '10.000'} Gs.</div>
-                    <div>Pago: ${boleto.metodo_pago || 'efectivo'}</div>
-                    <div>Vendedor: ${boleto.vendedor || 'Admin'}</div>
-                    <div>Fecha: ${boleto.fecha_venta || new Date().toLocaleString()}</div>
-                    <div class="line"></div>
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://sorteosvifransa.onrender.com/validar/${boleto.id}" alt="QR" class="qr-code">
-                    <div class="center bold">MUCHA SUERTE!</div>
-                    <div class="center">Gracias por participar.</div>
-                    <br><br><br>
+                    ${contenidoHtml}
                 </body>
                 </html>
             `);
@@ -149,11 +139,10 @@
             setTimeout(() => {
                 ventanaImpresion.print();
                 ventanaImpresion.close();
-            }, 500);
+            }, 600);
         }
 
         setInterval(verificarPendientes, 4000);
     </script>
 </body>
 </html>
-
