@@ -26,8 +26,22 @@
             .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
             .line { border-bottom: 1px dashed black; margin: 3px 0; }
             .bold { font-weight: bold; }
-            .qr-container { display: flex; justify-content: center; margin: 4px 0; }
-            .qr-container canvas, .qr-container img { width: 70px !important; height: 70px !important; display: block; }
+            
+            /* Contenedor optimizado para forzar formato de imagen nítida para lectura láser/cámara */
+            .qr-container { 
+                display: flex; 
+                justify-content: center; 
+                margin: 5px 0; 
+                background: white;
+                padding: 4px;
+                border: 1px solid #ccc;
+            }
+            .qr-container img { 
+                width: 80px !important; 
+                height: 80px !important; 
+                display: block; 
+            }
+
             .numero-grande { font-size: 18px; font-weight: bold; text-align: center; margin: 3px 0; padding: 2px; border: 2px dashed black; }
             .ticket-individual { page-break-after: always; break-after: page; padding-bottom: 12px; }
         }
@@ -119,8 +133,8 @@
                         .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 2px; }
                         .line { border-bottom: 1px dashed black; margin: 3px 0; }
                         .bold { font-weight: bold; }
-                        .qr-container { display: flex; justify-content: center; margin: 4px 0; }
-                        .qr-container canvas, .qr-container img { width: 70px !important; height: 70px !important; display: block; }
+                        .qr-container { display: flex; justify-content: center; margin: 5px 0; background: white; padding: 4px; border: 1px solid #000; }
+                        .qr-container img { width: 80px !important; height: 80px !important; display: block; }
                         .numero-grande { font-size: 18px; font-weight: bold; text-align: center; margin: 3px 0; padding: 2px; border: 2px dashed black; }
                         .ticket-individual { page-break-after: always; break-after: page; padding-bottom: 12px; }
                     </style>
@@ -133,22 +147,23 @@
                             numerosList.forEach((num, index) => {
                                 const el = document.getElementById('qr-' + num + '-' + index);
                                 if (el) {
+                                    // Forzar renderizado en imagen nítida (useSVG: true o conversor)
                                     new QRCode(el, {
                                         text: "https://sorteosvifransa.onrender.com/validar/" + num,
-                                        width: 70,
-                                        height: 70,
+                                        width: 80,
+                                        height: 80,
                                         colorDark : "#000000",
                                         colorLight : "#ffffff",
-                                        correctLevel : QRCode.CorrectLevel.L
+                                        correctLevel : QRCode.CorrectLevel.H // Máxima corrección de errores para lectura rápida
                                     });
                                 }
                             });
 
-                            // Disparo inmediato apenas se dibujan los elementos
-                            requestAnimationFrame(() => {
+                            // Breve pausa para asegurar que el navegador convierta el QR a imagen pura antes de imprimir
+                            setTimeout(() => {
                                 window.print();
                                 window.close();
-                            });
+                            }, 400);
                         };
                     <\/script>
                 </body>
@@ -158,7 +173,6 @@
             ventanaImpresion.focus();
         }
 
-        // Reducido a 2 segundos para que detecte casi al instante las aprobaciones
         setInterval(verificarPendientes, 2000);
     </script>
 </body>
