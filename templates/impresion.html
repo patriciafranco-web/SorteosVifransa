@@ -7,41 +7,44 @@
     <style>
         @media print {
             @page {
-                margin: 0;
+                /* Damos un margen superior de 10mm para que la URL obligatoria del navegador 
+                   caiga en ese espacio vacío y NO ensucie el papel térmico */
+                margin: 10mm 2mm 2mm 2mm;
                 size: 58mm auto;
             }
             body {
                 margin: 0;
-                padding: 3px;
+                padding: 0;
                 font-family: 'Courier New', monospace;
                 font-size: 10px;
-                width: 54mm;
+                width: 52mm;
                 color: black;
-                line-height: 1.2;
+                line-height: 1.1;
             }
             .no-print { display: none !important; }
             .center { text-align: center; }
-            .logo { font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
-            .sub-logo { font-size: 8px; text-transform: uppercase; margin-bottom: 6px; }
-            .line { border-bottom: 1px dashed black; margin: 4px 0; }
+            .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+            .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 4px; }
+            .line { border-bottom: 1px dashed black; margin: 3px 0; }
             .bold { font-weight: bold; }
-            .qr-code { margin: 6px auto; width: 80px; height: 80px; display: block; }
-            .numero-grande { font-size: 22px; font-weight: bold; text-align: center; margin: 8px 0; padding: 4px; border: 2px dashed black; }
-            /* Salto de página físico para que cada boleto salga en su propio papel cortado */
-            .ticket-individual { page-break-after: always; break-after: page; }
+            .qr-code { margin: 4px auto; width: 65px; height: 65px; display: block; }
+            .numero-grande { font-size: 20px; font-weight: bold; text-align: center; margin: 4px 0; padding: 2px; border: 2px dashed black; }
+            .ticket-individual { 
+                page-break-after: always; 
+                break-after: page; 
+                margin-bottom: 15px;
+            }
         }
         body { font-family: monospace; font-size: 12px; padding: 10px; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 flex flex-col items-center justify-center min-h-screen p-6 font-sans">
 
-    <!-- BOTÓN DE ACTIVACIÓN INICIAL (Obligatorio por seguridad del navegador) -->
+    <!-- BOTÓN DE ACTIVACIÓN INICIAL -->
     <div id="setupModal" class="no-print fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-amber-500/50 p-8 rounded-2xl max-w-md text-center shadow-2xl space-y-4">
             <h2 class="text-xl font-black text-amber-400">🖨️ Activar Impresión Automática</h2>
-            <p class="text-sm text-slate-300">
-                Para que los tickets salgan solos al aprobarse en la web, haz clic una sola vez en el botón de abajo.
-            </p>
+            <p class="text-sm text-slate-300">Haz clic una sola vez para habilitar la impresión automática en esta laptop.</p>
             <button onclick="activarSistema()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg text-lg">
                 🚀 Activar Sistema Ahora
             </button>
@@ -55,7 +58,7 @@
             <span class="w-3 h-3 bg-emerald-500 rounded-full animate-ping"></span>
             <span id="estadoTexto" class="text-sm font-semibold text-emerald-400">Conectado y esperando tickets...</span>
         </div>
-        <p class="text-xs text-slate-500">Mantén esta pestaña abierta en la laptop de Ariel.</p>
+        <p class="text-xs text-slate-500">Mantén esta pestaña abierta.</p>
     </div>
 
     <script>
@@ -79,17 +82,15 @@
                         }
                     }
                 }
-            } catch (e) { console.error("Error al verificar:", e); }
+            } catch (e) { console.error("Error:", e); }
         }
 
         function imprimirBoletosIndividuales(boleto) {
             const ventanaImpresion = window.open('', '_blank', 'width=300,height=800');
-            
             const numeros = boleto.numeros_asignados || [boleto.id];
             let contenidoHtml = '';
 
-            // Generar un ticket independiente por cada número del lote
-            numeros.forEach((num, index) => {
+            numeros.forEach((num) => {
                 contenidoHtml += `
                     <div class="ticket-individual">
                         <div class="center logo">Sorteos Vifran</div>
@@ -102,12 +103,11 @@
                         <div>Cliente: ${boleto.nombre}</div>
                         <div>CI: ${boleto.cedula}</div>
                         <div>Cel: ${boleto.telefono}</div>
-                        <div>Fecha: ${boleto.fecha_venta || new Date().toLocaleDateString()}</div>
+                        <div>Fecha: ${boleto.fecha_venta || 'Reciente'}</div>
                         <div class="line"></div>
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://sorteosvifransa.onrender.com/validar/${num}" alt="QR" class="qr-code">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://sorteosvifransa.onrender.com/validar/${num}" alt="QR" class="qr-code">
                         <div class="center bold">MUCHA SUERTE!</div>
                         <div class="center">Gracias por participar.</div>
-                        <br><br>
                     </div>
                 `;
             });
@@ -116,16 +116,27 @@
                 <html>
                 <head>
                     <style>
-                        @page { margin: 0; size: 58mm auto; }
-                        body { margin: 0; padding: 3px; font-family: 'Courier New', monospace; font-size: 10px; width: 54mm; color: black; line-height: 1.2; }
+                        @page { 
+                            margin: 10mm 2mm 2mm 2mm; 
+                            size: 58mm auto; 
+                        }
+                        body { 
+                            margin: 0; 
+                            padding: 0; 
+                            font-family: 'Courier New', monospace; 
+                            font-size: 10px; 
+                            width: 52mm; 
+                            color: black; 
+                            line-height: 1.1; 
+                        }
                         .center { text-align: center; }
-                        .logo { font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
-                        .sub-logo { font-size: 8px; text-transform: uppercase; margin-bottom: 6px; }
-                        .line { border-bottom: 1px dashed black; margin: 4px 0; }
+                        .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+                        .sub-logo { font-size: 7px; text-transform: uppercase; margin-bottom: 4px; }
+                        .line { border-bottom: 1px dashed black; margin: 3px 0; }
                         .bold { font-weight: bold; }
-                        .qr-code { margin: 6px auto; width: 80px; height: 80px; display: block; }
-                        .numero-grande { font-size: 22px; font-weight: bold; text-align: center; margin: 8px 0; padding: 4px; border: 2px dashed black; }
-                        .ticket-individual { page-break-after: always; break-after: page; }
+                        .qr-code { margin: 4px auto; width: 65px; height: 65px; display: block; }
+                        .numero-grande { font-size: 20px; font-weight: bold; text-align: center; margin: 4px 0; padding: 2px; border: 2px dashed black; }
+                        .ticket-individual { page-break-after: always; break-after: page; margin-bottom: 15px; }
                     </style>
                 </head>
                 <body>
