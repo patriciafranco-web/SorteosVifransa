@@ -91,7 +91,6 @@ def comprar():
   telefono = data.get("telefono")
   cedula = data.get("cedula")
   cantidad = int(data.get("cantidad", 1))
-  imagen_comprobante = data.get("imagen_comprobante", "")
 
   if not nombre or not telefono or not cedula or cantidad < 1:
     return jsonify({"error": "Todos los campos son obligatorios."}), 400
@@ -127,7 +126,7 @@ def comprar():
         "telefono": telefono,
         "cedula": cedula,
         "cantidad_lote": cantidad,
-        "imagen_comprobante": imagen_comprobante,
+        "imagen_comprobante": "",  # Vacío inicialmente hasta subir el comprobante
         "estado": "Pendiente",
         "impreso": False,
     }
@@ -137,10 +136,11 @@ def comprar():
   contador_boletos_por_sorteo[sorteo_id] = primer_numero + cantidad
 
   rango_str = (
-      f"#{nuevos_boletos[0]['id']}"
+      f"#{str(nuevos_boletos[0]['id']).zfill(5)}"
       if len(nuevos_boletos) == 1
       else (
-          f"#{nuevos_boletos[0]['id']} al #{nuevos_boletos[-1]['id']}"
+          f"#{str(nuevos_boletos[0]['id']).zfill(5)} al"
+          f" #{str(nuevos_boletos[-1]['id']).zfill(5)}"
       )
   )
 
@@ -148,9 +148,31 @@ def comprar():
       jsonify({
           "mensaje": f"¡Compra de {cantidad} boleto(s) registrada!",
           "rango": rango_str,
+          "lote_id": current_lote,
       }),
       200,
   )
+
+
+@app.route("/api/subir-comprobante", methods=["POST"])
+def subir_comprobante():
+  data = request.json
+  lote_id = data.get("lote_id")
+  imagen_comprobante = data.get("imagen_comprobante", "")
+
+  if not lote_id or not imagen_comprobante:
+    return jsonify({"error": "Datos incompletos para actualizar el comprobante."}), 400
+
+  actualizados = 0
+  for b in boletos_db:
+    if b["lote_id"] == lote_id:
+      b["imagen_comprobante"] = imagen_comprobante
+      actualizados += 1
+
+  if actualizados > 0:
+    return jsonify({"mensaje": "Comprobante actualizado correctamente."}), 200
+  else:
+    return jsonify({"error": "Lote no encontrado."}), 404
 
 
 @app.route("/api/consultar", methods=["POST"])
@@ -219,11 +241,6 @@ def webhook_whatsapp():
       return jsonify({"status": "ok"}), 200
 
     mensaje_lower = mensaje.lower().strip()
-    print(
-        f"📩 Mensaje de {telefono} | Texto: {mensaje_lower} | Es imagen:"
-        f" {es_imagen} | Paso actual:"
-        f" {SESIONES_WHATSAPP.get(telefono, {}).get('paso', 'INICIO')}"
-    )
 
     if telefono not in SESIONES_WHATSAPP:
       SESIONES_WHATSAPP[telefono] = {"paso": "INICIO", "datos": {}}
@@ -287,26 +304,9 @@ def webhook_whatsapp():
       sesion["datos"]["nombre"] = nombre_cliente
       sesion["datos"]["cedula"] = cedula_cliente
 
-      sesion["paso"] = "ESPERANDO_COMPROBANTE"
-      enviar_mensaje_whatsapp(
-          telefono,
-          f"✅ Datos guardados:\n👤 *Nombre:* {nombre_cliente}\n🆔"
-          f" *CI/RUC:* {cedula_cliente}\n\n📸 Ahora, por favor **enviá la foto"
-          " del comprobante de pago** para que el equipo lo verifique.",
-      )
-
-    # PASO 4: Recibir comprobante (Foto), extraer URL y guardar como PENDIENTE
-    elif paso == "ESPERANDO_COMPROBANTE" and es_imagen:
+      # Reservar físicamente en memoria los boletos en este momento exacto
       sorteo = sorteos_db[0]
       numeros = sesion["datos"]["numeros"]
-      nombre = sesion["datos"]["nombre"]
-      cedula = sesion["datos"]["cedula"]
-      telefono_cliente = telefono
-      cantidad = len(numeros)
-
-      file_data = messageData.get("fileMessageData", {})
-      download_url = file_data.get("downloadUrl", "")
-
       global lote_contador
       current_lote = lote_contador
       lote_contador += 1
@@ -317,17 +317,37 @@ def webhook_whatsapp():
             "id": num_int,
             "sorteo_id": sorteo["id"],
             "lote_id": current_lote,
-            "nombre": nombre,
-            "telefono": telefono_cliente,
-            "cedula": cedula,
-            "cantidad_lote": cantidad,
-            "imagen_comprobante": download_url,
+            "nombre": nombre_cliente,
+            "telefono": telefono,
+            "cedula": cedula_cliente,
+            "cantidad_lote": len(numeros),
+            "imagen_comprobante": "",
             "estado": "Pendiente",
             "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
 
-      contador_boletos_por_sorteo[sorteo["id"]] += cantidad
+      contador_boletos_por_sorteo[sorteo["id"]] += len(numeros)
+      sesion["datos"]["lote_id"] = current_lote
+
+      sesion["paso"] = "ESPERANDO_COMPROBANTE"
+      enviar_mensaje_whatsapp(
+          telefono,
+          f"✅ Datos guardados:\n👤 *Nombre:* {nombre_cliente}\n🆔"
+          f" *CI/RUC:* {cedula_cliente}\n\n📸 Ahora, por favor **enviá la foto"
+          " del comprobante de pago** para que el equipo lo verifique.",
+      )
+
+    # PASO 4: Recibir comprobante (Foto), actualizar la URL en el lote existente
+    elif paso == "ESPERANDO_COMPROBANTE" and es_imagen:
+      file_data = messageData.get("fileMessageData", {})
+      download_url = file_data.get("downloadUrl", "")
+      current_lote = sesion["datos"].get("lote_id")
+
+      if current_lote:
+        for b in boletos_db:
+          if b["lote_id"] == current_lote:
+            b["imagen_comprobante"] = download_url
 
       enviar_mensaje_whatsapp(
           telefono,
