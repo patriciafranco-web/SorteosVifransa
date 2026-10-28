@@ -87,7 +87,7 @@
                             <th class="p-3">Comprador</th>
                             <th class="p-3">Cédula / Teléfono</th>
                             <th class="p-3">Estado</th>
-                            <th class="p-3">Impreso</th>
+                            <th class="p-3">Impreso / Acción</th>
                         </tr>
                     </thead>
                     <tbody id="tablaHistorialBoletos" class="text-sm divide-y divide-slate-700/50"></tbody>
@@ -246,7 +246,6 @@
                             if(l.imagen.startsWith('http')) {
                                 comprobanteHtml = `<div class="mt-2"><a href="${l.imagen}" target="_blank" class="inline-block bg-slate-950 px-3 py-2 rounded-xl border border-slate-700 text-amber-400 text-xs font-bold underline hover:text-amber-300">🔍 Ver Comprobante de WhatsApp (Abrir Imagen)</a></div>`;
                             } else {
-                                // Aquí llamamos a la función abrirModal() en lugar de abrir en nueva pestaña
                                 comprobanteHtml = `<div class="mt-2"><img src="${l.imagen}" onclick="abrirModal(this.src)" alt="Comprobante" class="w-32 h-32 object-cover rounded-xl border border-slate-700 hover:opacity-80 transition cursor-pointer shadow-md ring-2 ring-transparent hover:ring-amber-400"></div>`;
                             }
                         }
@@ -272,13 +271,26 @@
                     tablaHistorial.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay boletos registrados aún.</td></tr>`;
                 } else {
                     data.boletos.forEach(b => {
+                        let estadoBadge = b.estado === 'Aprobado' 
+                            ? '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Aprobado</span>' 
+                            : '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">Pendiente</span>';
+
+                        let impresoHtml = b.impreso === 'Impreso' || b.impreso === true
+                            ? '<span class="text-emerald-400 font-bold">Impreso</span>' 
+                            : '<span class="text-amber-400">Pendiente</span>';
+
                         tablaHistorial.innerHTML += `
                             <tr class="hover:bg-slate-700/30">
                                 <td class="p-3 font-bold text-amber-400">#${b.id}</td>
                                 <td class="p-3">${b.nombre}</td>
                                 <td class="p-3 text-slate-300">CI: ${b.cedula}<br><span class="text-xs text-slate-400">Tel: ${b.telefono}</span></td>
-                                <td class="p-3"><span class="px-2.5 py-1 rounded-lg text-xs font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">${b.estado}</span></td>
-                                <td class="p-3 text-xs">${b.impreso ? '<span class="text-emerald-400 font-bold">Impreso</span>' : '<span class="text-amber-400">Pendiente</span>'}</td>
+                                <td class="p-3">${estadoBadge}</td>
+                                <td class="p-3 flex items-center space-x-3">
+                                    ${impresoHtml}
+                                    <button onclick="reimprimirBoleto(${b.id})" class="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2.5 py-1 rounded text-xs transition duration-150 shadow">
+                                        🖨️ Re-imprimir
+                                    </button>
+                                </td>
                             </tr>`;
                     });
                 }
@@ -294,6 +306,25 @@
             const data = await res.json();
             if(res.ok) { alert(data.mensaje); cargarDatosAdmin(); }
             else { alert(data.error || "Error al aprobar lote"); }
+        }
+
+        async function reimprimirBoleto(boletoId) {
+            try {
+                const res = await fetch(`/api/reimprimir/${boletoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario: currentUser, password: currentPass })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert("¡Orden de reimpresión enviada con éxito a la impresora de Ariel!");
+                    cargarDatosAdmin();
+                } else {
+                    alert("Error: " + (data.error || "No se pudo reimprimir"));
+                }
+            } catch (error) {
+                alert("Error de conexión al intentar reimprimir.");
+            }
         }
 
         async function finalizarSorteo(sorteoId) {
