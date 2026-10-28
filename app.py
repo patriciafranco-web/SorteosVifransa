@@ -74,6 +74,112 @@ def admin_panel():
 
 
 # ==========================================
+# RUTAS DE COMPRA PÚBLICA (WEB Y CONSULTA)
+# ==========================================
+@app.route("/api/sorteos", methods=["GET"])
+def obtener_sorteos():
+  activos = [s for s in sorteos_db if s["estado"] == "Activo"]
+  return jsonify({"sorteos": activos})
+
+
+@app.route("/api/comprar", methods=["POST"])
+def comprar():
+  global lote_contador
+  data = request.json
+  sorteo_id = int(data.get("sorteo_id", 1))
+  nombre = data.get("nombre")
+  telefono = data.get("telefono")
+  cedula = data.get("cedula")
+  cantidad = int(data.get("cantidad", 1))
+  imagen_comprobante = data.get("imagen_comprobante", "")
+
+  if not nombre or not telefono or not cedula or cantidad < 1:
+    return jsonify({"error": "Todos los campos son obligatorios."}), 400
+
+  sorteo_activo = next(
+      (s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"),
+      None,
+  )
+  if not sorteo_activo:
+    return jsonify({"error": "El sorteo seleccionado ya no está activo."}), 400
+
+  primer_numero = contador_boletos_por_sorteo.get(sorteo_id, 1)
+  emitidos_actuales = primer_numero - 1
+  if (emitidos_actuales + cantidad) > sorteo_activo["limite_boletos"]:
+    return (
+        jsonify({
+            "error": "No hay suficientes boletos disponibles para esa cantidad."
+        }),
+        400,
+    )
+
+  current_lote = lote_contador
+  lote_contador += 1
+
+  nuevos_boletos = []
+  for i in range(cantidad):
+    num_boleto = primer_numero + i
+    nuevo_boleto = {
+        "id": num_boleto,
+        "sorteo_id": sorteo_id,
+        "lote_id": current_lote,
+        "nombre": nombre,
+        "telefono": telefono,
+        "cedula": cedula,
+        "cantidad_lote": cantidad,
+        "imagen_comprobante": imagen_comprobante,
+        "estado": "Pendiente",
+        "impreso": False,
+    }
+    boletos_db.append(nuevo_boleto)
+    nuevos_boletos.append(nuevo_boleto)
+
+  contador_boletos_por_sorteo[sorteo_id] = primer_numero + cantidad
+
+  rango_str = (
+      f"#{nuevos_boletos[0]['id']}"
+      if len(nuevos_boletos) == 1
+      else (
+          f"#{nuevos_boletos[0]['id']} al #{nuevos_boletos[-1]['id']}"
+      )
+  )
+
+  return (
+      jsonify({
+          "mensaje": f"¡Compra de {cantidad} boleto(s) registrada!",
+          "rango": rango_str,
+      }),
+      200,
+  )
+
+
+@app.route("/api/consultar", methods=["POST"])
+def consultar():
+  data = request.json
+  termino = data.get("termino")
+
+  resultados = [
+      b for b in boletos_db if b["telefono"] == termino or b["cedula"] == termino
+  ]
+  if not resultados:
+    return (
+        jsonify({
+            "encontrado": False,
+            "mensaje": "No se encontraron boletos con esos datos.",
+        }),
+        404,
+    )
+
+  for b in resultados:
+    s = next(
+        (item for item in sorteos_db if item["id"] == b["sorteo_id"]), None
+    )
+    b["sorteo_titulo"] = s["titulo"] if s else "Sorteo General"
+
+  return jsonify({"encontrado": True, "boletos": resultados}), 200
+
+
+# ==========================================
 # WEBHOOK DEL BOT DE WHATSAPP (GREEN API)
 # ==========================================
 @app.route("/api/webhook/whatsapp", methods=["POST"])
@@ -191,8 +297,8 @@ def webhook_whatsapp():
       nombre = sesion["datos"]["nombre"]
       cedula = sesion["datos"]["cedula"]
       telefono_cliente = telefono
+      cantidad = len(numeros)
 
-      # Extraer la URL de la foto de Green API
       file_data = messageData.get("fileMessageData", {})
       download_url = file_data.get("downloadUrl", "")
 
@@ -209,16 +315,14 @@ def webhook_whatsapp():
             "nombre": nombre,
             "telefono": telefono_cliente,
             "cedula": cedula,
-            "cantidad_lote": len(numeros),
-            "imagen_comprobante": (
-                download_url  # URL real del comprobante enviado
-            ),
+            "cantidad_lote": cantidad,
+            "imagen_comprobante": download_url,
             "estado": "Pendiente",
             "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
 
-      contador_boletos_por_sorteo[sorteo["id"]] += len(numeros)
+      contador_boletos_por_sorteo[sorteo["id"]] += cantidad
 
       enviar_mensaje_whatsapp(
           telefono,
@@ -236,7 +340,7 @@ def webhook_whatsapp():
 
 
 # ==========================================
-# GENERADOR DE IMAGEN DIGITAL DE TICKET
+# GENERADOR DE IMAGEN DIGITAL DE TICKET CON QR
 # ==========================================
 @app.route("/api/ticket-imagen/<int:boleto_id>")
 def obtener_ticket_imagen(boleto_id):
@@ -330,22 +434,68 @@ def admin_datos():
   return jsonify({"sorteos": sorteos_db, "boletos": boletos_db})
 
 
-@app.route("/api/admin/aprobar/<int:boleto_id>", methods=["POST"])
-def admin_aprobar(boleto_id):
+@app.route("/api/admin/crear-sorteo", methods=["POST"])
+def admin_crear_sorteo():
   data = request.json
   if not verificar_admin(data):
     return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
 
-  sorteo_id = data.get("sorteo_id")
+  titulo = data.get("titulo")
+  precio = int(data.get("precio", 10000))
+  limite_boletos = int(data.get("limite_boletos", 1000))
 
+  if not titulo:
+    return jsonify({"error": "El título es obligatorio"}), 400
+
+  nuevo_id = len(sorteos_db) + 1
+  nuevo_sorteo = {
+      "id": nuevo_id,
+      "titulo": titulo,
+      "precio": precio,
+      "limite_boletos": limite_boletos,
+      "estado": "Activo",
+  }
+  sorteos_db.append(nuevo_sorteo)
+  contador_boletos_por_sorteo[nuevo_id] = 1
+
+  return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
+
+
+@app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
+def admin_finalizar_sorteo(sorteo_id):
+  data = request.json
+  if not verificar_admin(data):
+    return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+
+  for s in sorteos_db:
+    if s["id"] == sorteo_id:
+      s["estado"] = "Finalizado"
+      return jsonify(
+          {"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."}
+      )
+
+  return jsonify({"error": "Sorteo no encontrado"}), 404
+
+
+@app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
+def admin_aprobar_lote(lote_id):
+  data = request.json
+  if not verificar_admin(data):
+    return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+
+  aprobados = 0
   for b in boletos_db:
-    if b["id"] == boleto_id and b["sorteo_id"] == sorteo_id:
+    if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
       b["estado"] = "Aprobado"
+      aprobados += 1
 
+      # Enviar boleto digital con QR por WhatsApp automáticamente al cliente
       telefono = b["telefono"]
       nombre = b["nombre"]
       cedula = b["cedula"]
-      sorteo = sorteos_db[0]
+      sorteo = next(
+          (s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0]
+      )
       url_imagen_ticket = (
           f"{request.host_url.rstrip('/')}/api/ticket-imagen/{b['id']}"
       )
@@ -357,13 +507,13 @@ def admin_aprobar(boleto_id):
       )
       enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
 
-      return jsonify({"mensaje": f"Boleto #{boleto_id} aprobado y enviado."})
-
-  return jsonify({"error": "Boleto no encontrado"}), 404
+  if aprobados > 0:
+    return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
+  return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
 
 
 # ==========================================
-# RUTAS DE IMPRESIÓN WEB AUTOMÁTICA
+# RUTAS DE IMPRESIÓN TÉRMICA LOCAL
 # ==========================================
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
@@ -377,6 +527,9 @@ def obtener_pendientes_impresion():
         and b["lote_id"] not in lotes_procesados
     ):
       lotes_procesados.add(b["lote_id"])
+      sorteo = next(
+          (s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0]
+      )
       numeros_del_lote = [
           str(x["id"]).zfill(5)
           for x in boletos_db
@@ -385,7 +538,7 @@ def obtener_pendientes_impresion():
 
       pendientes.append({
           "id": b["lote_id"],
-          "sorteo_titulo": "Sorteo de 4 iPhones",
+          "sorteo_titulo": sorteo["titulo"],
           "nombre": b["nombre"],
           "cedula": b["cedula"],
           "telefono": b["telefono"],
