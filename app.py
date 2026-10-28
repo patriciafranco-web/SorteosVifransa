@@ -14,9 +14,19 @@ API_TOKEN_INSTANCE = (
 )
 
 
+def formatear_telefono(telefono):
+  """Limpia y formatea el número para WhatsApp (Ej: Paraguay 595...)"""
+  tel_limpio = "".join(filter(str.isdigit, str(telefono)))
+  # Si empieza con 0 en Paraguay (ej: 0981...), lo pasamos a 595981...
+  if len(tel_limpio) == 10 and tel_limpio.startswith("0"):
+    tel_limpio = "595" + tel_limpio[1:]
+  return tel_limpio
+
+
 def enviar_mensaje_whatsapp(telefono, texto):
+  tel_formateado = formatear_telefono(telefono)
   url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
-  payload = {"chatId": f"{telefono}@c.us", "message": texto}
+  payload = {"chatId": f"{tel_formateado}@c.us", "message": texto}
   try:
     res = requests.post(url, json=payload)
     print(f"📤 Respuesta sendMessage: {res.status_code} - {res.text}")
@@ -25,11 +35,12 @@ def enviar_mensaje_whatsapp(telefono, texto):
 
 
 def enviar_imagen_whatsapp(telefono, url_imagen, caption):
+  tel_formateado = formatear_telefono(telefono)
   url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUrl/{API_TOKEN_INSTANCE}"
   payload = {
-      "chatId": f"{telefono}@c.us",
+      "chatId": f"{tel_formateado}@c.us",
       "urlFile": url_imagen,
-      "fileName": "flyer_sorteo.jpg",
+      "fileName": "ticket_sorteo.png",
       "caption": caption,
   }
   try:
@@ -126,7 +137,7 @@ def comprar():
         "telefono": telefono,
         "cedula": cedula,
         "cantidad_lote": cantidad,
-        "imagen_comprobante": "",  # Vacío inicialmente hasta subir el comprobante
+        "imagen_comprobante": "",
         "estado": "Pendiente",
         "impreso": False,
     }
@@ -248,25 +259,20 @@ def webhook_whatsapp():
     sesion = SESIONES_WHATSAPP[telefono]
     paso = sesion["paso"]
 
-    # PASO 1: Saludo inicial y envío del flyer oficial
     if "hola" in mensaje_lower or paso == "INICIO":
       sesion["paso"] = "ESPERANDO_CANTIDAD"
       sorteo = sorteos_db[0]
-
       url_flyer = request.host_url.rstrip("/") + url_for(
           "static", filename="flyer_sorteo.jpg"
       )
-
       caption = (
           f"¡Hola! Bienvenido a *VIFRAN GROUP S.A.* 🍀\nTu suerte, nuestro"
           f" compromiso.\n\n🏆 *Sorteo:* {sorteo['titulo']}\n💵 *Valor del"
           f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
-          " reservar?\n*(Responde únicamente con el número, ej: '2')*"
+          " reservar?\n*(Responde únicamente con cái número, ej: '2')*"
       )
-
       enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
-    # PASO 2: Recibir cantidad, calcular total y pedir datos (SIN CREAR BOLETOS TODAVÍA)
     elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
       cantidad = int(mensaje)
       sesion["datos"]["cantidad"] = cantidad
@@ -283,7 +289,6 @@ def webhook_whatsapp():
           " 1234567).",
       )
 
-    # PASO 3: Recibir Nombre y Cédula, reservar los números y pedir comprobante
     elif paso == "ESPERANDO_DATOS_CLIENTE" and (
         "," in mensaje or " " in mensaje
     ):
@@ -301,7 +306,6 @@ def webhook_whatsapp():
       sorteo = sorteos_db[0]
       cantidad = sesion["datos"]["cantidad"]
 
-      # Reservar los números en la base de datos (UNA SOLA VEZ)
       primer_num = contador_boletos_por_sorteo.get(sorteo["id"], 1)
       global lote_contador
       current_lote = lote_contador
@@ -318,7 +322,7 @@ def webhook_whatsapp():
             "telefono": telefono,
             "cedula": cedula_cliente,
             "cantidad_lote": cantidad,
-            "imagen_comprobante": "",  # Vacío hasta que envíe la foto
+            "imagen_comprobante": "",
             "estado": "Pendiente",
             "impreso": False,
         }
@@ -338,7 +342,6 @@ def webhook_whatsapp():
           " foto del comprobante de pago** para finalizar.",
       )
 
-    # PASO 4: Recibir comprobante (Foto) y actualizar el lote existente
     elif paso == "ESPERANDO_COMPROBANTE" and es_imagen:
       file_data = messageData.get("fileMessageData", {})
       download_url = file_data.get("downloadUrl", "")
@@ -607,6 +610,8 @@ def admin_aprobar_lote(lote_id):
       sorteo = next(
           (s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0]
       )
+
+      # Genera y envía la boleta con QR por WhatsApp automáticamente al aprobar
       url_imagen_ticket = (
           f"{request.host_url.rstrip('/')}/api/ticket-imagen/{b['id']}"
       )
