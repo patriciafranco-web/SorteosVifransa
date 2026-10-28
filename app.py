@@ -40,10 +40,7 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
     def tarea():
         tel_formateado = formatear_telefono(telefono)
         url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUrl/{API_TOKEN_INSTANCE}"
-        
-        # OBLIGAMOS A QUE LA URL SEA HTTPS PARA EVITAR BLOQUEOS EN RENDER
         url_imagen_segura = url_imagen.replace("http://", "https://")
-        
         payload = {
             "chatId": f"{tel_formateado}@c.us",
             "urlFile": url_imagen_segura,
@@ -56,6 +53,38 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
         except Exception as e:
             print(f"❌ Error enviando imagen Green API: {e}")
     threading.Thread(target=tarea).start()
+
+# --- NUEVA FUNCIÓN DE ENVÍO DIRECTO POR UPLOAD (EVITA BLOQUEOS) ---
+def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
+    def tarea():
+        tel_formateado = formatear_telefono(telefono)
+        
+        # 1. Enviamos primero un mensaje de texto avisando
+        url_txt = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
+        try:
+            requests.post(url_txt, json={"chatId": f"{tel_formateado}@c.us", "message": "✅ *¡Pago verificado!* Generando tu boleto oficial con QR..."})
+        except Exception as e:
+            print(f"❌ Error enviando aviso previo: {e}")
+        
+        # 2. Generamos la imagen en memoria
+        output = crear_imagen_boleto_memoria(boleto_id, host_url)
+        if not output:
+            print("❌ Error: No se pudo generar la imagen del ticket en memoria.")
+            return
+        
+        # 3. Subimos el archivo directamente vía API de Green API
+        url_up = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUpload/{API_TOKEN_INSTANCE}"
+        payload = {'chatId': f"{tel_formateado}@c.us", 'caption': caption}
+        files = [('file', (f'ticket_{boleto_id}.png', output.getvalue(), 'image/png'))]
+        
+        try:
+            res = requests.post(url_up, data=payload, files=files)
+            print(f"📤 Respuesta sendFileByUpload (Ticket): {res.status_code} - {res.text}")
+        except Exception as e:
+            print(f"❌ Error subiendo ticket directamente: {e}")
+            
+    threading.Thread(target=tarea).start()
+
 
 # ==========================================
 # BASE DE DATOS EN MEMORIA (SORTEO VIFRAN)
@@ -300,10 +329,7 @@ def webhook_whatsapp():
         if "hola" in mensaje_lower or paso == "INICIO":
             sesion["paso"] = "ESPERANDO_CANTIDAD"
             sorteo = sorteos_db[0]
-            
-            # OBLIGAMOS A QUE LA URL SEA HTTPS
             url_flyer = request.host_url.rstrip("/").replace("http://", "https://") + url_for("static", filename="flyer_sorteo.jpg")
-            
             caption = (
                 f"¡Hola! Bienvenido a *VIFRAN GROUP S.A.* 🍀\nTu suerte, nuestro compromiso.\n\n"
                 f"🏆 *Sorteo:* {sorteo['titulo']}\n💵 *Valor del ticket:* Gs. {sorteo['precio']:,}\n\n"
@@ -579,9 +605,7 @@ def admin_aprobar_lote(lote_id):
     if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
     
     aprobados = 0
-    
-    # ⚠️ FORZAMOS HTTPS PARA QUE GREEN API PUEDA DESCARGAR LA IMAGEN
-    host_actual = request.host_url.rstrip('/').replace("http://", "https://")
+    host_actual = request.host_url
     
     for b in boletos_db:
         if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
@@ -591,9 +615,8 @@ def admin_aprobar_lote(lote_id):
             
             caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
             
-            # Pasamos la URL pública con HTTPS forzado
-            url_imagen_ticket = f"{host_actual}/api/ticket-imagen/{b['id']}"
-            enviar_imagen_whatsapp(b['telefono'], url_imagen_ticket, caption)
+            # 🚀 LLAMADA A LA FUNCIÓN DE UPLOAD DIRECTO (CERO DESCARGAS EXTERNAS)
+            enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
 
     if aprobados > 0: return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
     return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
