@@ -266,30 +266,24 @@ def webhook_whatsapp():
 
       enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
-    # PASO 2: Recibir cantidad, reservar números y pedir datos
+    # PASO 2: Recibir cantidad, calcular total y pedir datos (SIN CREAR BOLETOS TODAVÍA)
     elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
       cantidad = int(mensaje)
       sesion["datos"]["cantidad"] = cantidad
       sorteo = sorteos_db[0]
       total = cantidad * sorteo["precio"]
 
-      primer_num = contador_boletos_por_sorteo.get(sorteo["id"], 1)
-      numeros_asignados = [
-          str(primer_num + i).zfill(5) for i in range(cantidad)
-      ]
-      sesion["datos"]["numeros"] = numeros_asignados
-
       sesion["paso"] = "ESPERANDO_DATOS_CLIENTE"
       enviar_mensaje_whatsapp(
           telefono,
-          f"🎟️ *¡Números Reservados!*\n\nSorteo: {sorteo['titulo']}\nTus números:"
-          f" {', '.join(numeros_asignados)}\nTotal a pagar: *{total:,}"
-          " Gs.*\n\n📂 *Datos para el pago (ueno):*\n🔸 *RUC / Alias:*"
-          " 4775796-5\n🔸 *Titular:* Patricia Franco\n\n📝 Por favor, escribe tu"
-          " *Nombre completo* y tu *Cédula/RUC* (Ej: Juan Pérez 1234567).",
+          f"🎟️ *Cantidad seleccionada:* {cantidad} boleto(s)\nTotal a pagar:"
+          f" *{total:,} Gs.*\n\n📂 *Datos para el pago (ueno):*\n🔸 *RUC /"
+          " Alias:* 4775796-5\n🔸 *Titular:* Patricia Franco\n\n📝 Por favor,"
+          " escribe tu *Nombre completo* y tu *Cédula/RUC* (Ej: Juan Pérez"
+          " 1234567).",
       )
 
-    # PASO 3: Recibir Nombre y Cédula del cliente (Flexible con comas o espacios)
+    # PASO 3: Recibir Nombre y Cédula, reservar los números y pedir comprobante
     elif paso == "ESPERANDO_DATOS_CLIENTE" and (
         "," in mensaje or " " in mensaje
     ):
@@ -304,41 +298,47 @@ def webhook_whatsapp():
       sesion["datos"]["nombre"] = nombre_cliente
       sesion["datos"]["cedula"] = cedula_cliente
 
-      # Reservar físicamente en memoria los boletos en este momento exacto
       sorteo = sorteos_db[0]
-      numeros = sesion["datos"]["numeros"]
+      cantidad = sesion["datos"]["cantidad"]
+
+      # Reservar los números en la base de datos (UNA SOLA VEZ)
+      primer_num = contador_boletos_por_sorteo.get(sorteo["id"], 1)
       global lote_contador
       current_lote = lote_contador
       lote_contador += 1
 
-      for num_str in numeros:
-        num_int = int(num_str)
+      numeros_asignados = []
+      for i in range(cantidad):
+        num_boleto = primer_num + i
         nuevo_boleto = {
-            "id": num_int,
+            "id": num_boleto,
             "sorteo_id": sorteo["id"],
             "lote_id": current_lote,
             "nombre": nombre_cliente,
             "telefono": telefono,
             "cedula": cedula_cliente,
-            "cantidad_lote": len(numeros),
-            "imagen_comprobante": "",
+            "cantidad_lote": cantidad,
+            "imagen_comprobante": "",  # Vacío hasta que envíe la foto
             "estado": "Pendiente",
             "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
+        numeros_asignados.append(str(num_boleto).zfill(5))
 
-      contador_boletos_por_sorteo[sorteo["id"]] += len(numeros)
+      contador_boletos_por_sorteo[sorteo["id"]] += cantidad
       sesion["datos"]["lote_id"] = current_lote
+      sesion["datos"]["numeros"] = numeros_asignados
 
       sesion["paso"] = "ESPERANDO_COMPROBANTE"
       enviar_mensaje_whatsapp(
           telefono,
           f"✅ Datos guardados:\n👤 *Nombre:* {nombre_cliente}\n🆔"
-          f" *CI/RUC:* {cedula_cliente}\n\n📸 Ahora, por favor **enviá la foto"
-          " del comprobante de pago** para que el equipo lo verifique.",
+          f" *CI/RUC:* {cedula_cliente}\n🎟️ *Tus números:*"
+          f" {', '.join(numeros_asignados)}\n\n📸 Ahora, por favor **enviá la"
+          " foto del comprobante de pago** para finalizar.",
       )
 
-    # PASO 4: Recibir comprobante (Foto), actualizar la URL en el lote existente
+    # PASO 4: Recibir comprobante (Foto) y actualizar el lote existente
     elif paso == "ESPERANDO_COMPROBANTE" and es_imagen:
       file_data = messageData.get("fileMessageData", {})
       download_url = file_data.get("downloadUrl", "")
