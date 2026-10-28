@@ -269,13 +269,18 @@ def webhook_whatsapp():
           f" {', '.join(numeros_asignados)}\nTotal a pagar: *{total:,}"
           " Gs.*\n\n📂 *Datos para el pago (ueno):*\n🔸 *RUC / Alias:*"
           " 4775796-5\n🔸 *Titular:* Patricia Franco\n\n📝 Por favor, escribe tu"
-          " *Nombre completo* y tu *Cédula/RUC* separados por una coma (Ej: Juan"
-          " Pérez, 1234567).",
+          " *Nombre completo* y tu *Cédula/RUC* (Ej: Juan Pérez 1234567).",
       )
 
-    # PASO 3: Recibir Nombre y Cédula del cliente
-    elif paso == "ESPERANDO_DATOS_CLIENTE" and "," in mensaje:
-      partes = mensaje.split(",")
+    # PASO 3: Recibir Nombre y Cédula del cliente (Flexible con comas o espacios)
+    elif paso == "ESPERANDO_DATOS_CLIENTE" and (
+        "," in mensaje or " " in mensaje
+    ):
+      if "," in mensaje:
+        partes = mensaje.split(",")
+      else:
+        partes = mensaje.rsplit(" ", 1)
+
       nombre_cliente = partes[0].strip()
       cedula_cliente = partes[1].strip()
 
@@ -489,7 +494,6 @@ def admin_aprobar_lote(lote_id):
       b["estado"] = "Aprobado"
       aprobados += 1
 
-      # Enviar boleto digital con QR por WhatsApp automáticamente al cliente
       telefono = b["telefono"]
       nombre = b["nombre"]
       cedula = b["cedula"]
