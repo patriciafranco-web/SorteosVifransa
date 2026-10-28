@@ -1,6 +1,8 @@
 import io
 import time
 import threading
+import json
+import os
 from flask import Flask, jsonify, render_template, request, send_file, url_for
 from PIL import Image, ImageDraw, ImageFont
 import requests
@@ -81,8 +83,10 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 
 
 # ==========================================
-# BASE DE DATOS EN MEMORIA (SORTEO VIFRAN)
+# BASE DE DATOS Y PERSISTENCIA EN DISCO
 # ==========================================
+ARCHIVO_DATOS = "datos_vifran.json"
+
 sorteos_db = [{
     "id": 1,
     "titulo": "Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)",
@@ -93,7 +97,7 @@ sorteos_db = [{
 }]
 
 boletos_db = []
-clientes_db = {}  # 🗂️ NUEVA BASE DE DATOS DE CLIENTES {telefono: {"nombre": ..., "cedula": ...}}
+clientes_db = {}  # {telefono: {"nombre": ..., "cedula": ...}}
 contador_boletos_por_sorteo = {1: 1}
 lote_contador = 1
 
@@ -106,6 +110,41 @@ ADMIN_USERS = {
     "patriciafranco": "Vifran2026*Secure$",
     "edgarfranco": "Vifran2026*Secure$",
 }
+
+def guardar_datos_disco():
+    datos = {
+        "sorteos": sorteos_db,
+        "boletos": boletos_db,
+        "clientes": clientes_db,
+        "contador_boletos": contador_boletos_por_sorteo,
+        "lote_contador": lote_contador,
+        "numeros_liberados": numeros_liberados
+    }
+    try:
+        with open(ARCHIVO_DATOS, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"❌ Error guardando en disco: {e}")
+
+def cargar_datos_disco():
+    global sorteos_db, boletos_db, clientes_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados
+    if os.path.exists(ARCHIVO_DATOS):
+        try:
+            with open(ARCHIVO_DATOS, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+                sorteos_db = datos.get("sorteos", sorteos_db)
+                boletos_db = datos.get("boletos", boletos_db)
+                clientes_db = datos.get("clientes", {})
+                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 1}).items()}
+                lote_contador = datos.get("lote_contador", 1)
+                numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
+                print("✅ Datos cargados exitosamente desde el disco.")
+        except Exception as e:
+            print(f"❌ Error leyendo datos del disco: {e}")
+
+# Cargar datos al iniciar la aplicación
+cargar_datos_disco()
+
 
 # ==========================================
 # CRONJOB LIGERO (RECUPERACIÓN Y EXPIRACIÓN)
@@ -140,6 +179,7 @@ def revisar_lotes_pendientes():
                     numeros_liberados[s_id].append(b['id'])
                 boletos_db = [b for b in boletos_db if b['lote_id'] != lote_id]
                 del lotes_pendientes[lote_id]
+            guardar_datos_disco()
 
 hilo_revision = threading.Thread(target=revisar_lotes_pendientes, daemon=True)
 hilo_revision.start()
@@ -183,7 +223,6 @@ def comprar():
     if not nombre or not telefono or not cedula or cantidad < 1:
         return jsonify({"error": "Todos los campos son obligatorios."}), 400
 
-    # 🗂️ Guardar o actualizar cliente automáticamente en la base de datos
     clientes_db[telefono] = {"nombre": nombre, "cedula": cedula}
 
     sorteo_activo = next((s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"), None)
@@ -232,6 +271,8 @@ def comprar():
         "tiempo_reserva": time.time(),
         "recordatorio_enviado": False
     }
+
+    guardar_datos_disco()
 
     rango_str = (
         f"#{str(nuevos_boletos_ids[0]).zfill(5)}"
@@ -349,7 +390,6 @@ def webhook_whatsapp():
             sesion["datos"]["nombre"] = nombre_cliente
             sesion["datos"]["cedula"] = cedula_cliente
 
-            # 🗂️ Guardar o actualizar cliente desde WhatsApp
             clientes_db[telefono] = {"nombre": nombre_cliente, "cedula": cedula_cliente}
 
             sorteo = sorteos_db[0]
@@ -400,6 +440,8 @@ def webhook_whatsapp():
                 "recordatorio_enviado": False
             }
 
+            guardar_datos_disco()
+
             sesion["paso"] = "ESPERANDO_COMPROBANTE"
             enviar_mensaje_whatsapp(
                 telefono,
@@ -419,6 +461,8 @@ def webhook_whatsapp():
                 
                 if current_lote in lotes_pendientes:
                     del lotes_pendientes[current_lote]
+                
+                guardar_datos_disco()
 
             enviar_mensaje_whatsapp(
                 telefono,
@@ -533,7 +577,7 @@ def validar_boleto_qr(boleto_id):
 
 
 # ==========================================
-# API DE ADMINISTRACIÓN (INCLUYENDO DIFUSIÓN)
+# API DE ADMINISTRACIÓN
 # ==========================================
 def verificar_admin(data):
     if data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password"): 
@@ -565,6 +609,7 @@ def admin_crear_sorteo():
     }
     sorteos_db.append(nuevo_sorteo)
     contador_boletos_por_sorteo[nuevo_id] = 1
+    guardar_datos_disco()
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
 @app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
@@ -573,10 +618,10 @@ def admin_finalizar_sorteo(sorteo_id):
     for s in sorteos_db:
         if s["id"] == sorteo_id:
             s["estado"] = "Finalizado"
+            guardar_datos_disco()
             return jsonify({"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."})
     return jsonify({"error": "Sorteo no encontrado"}), 404
 
-# 🚀 NUEVA RUTA: ENVIAR DIFUSIÓN A TODOS LOS CLIENTES GUARDADOS PARA NUEVOS SORTEOS
 @app.route("/api/admin/difundir-nuevo-sorteo", methods=["POST"])
 def difundir_nuevo_sorteo():
     data = request.json
@@ -619,7 +664,9 @@ def admin_aprobar_lote(lote_id):
             caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
             enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
 
-    if aprobados > 0: return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
+    if aprobados > 0: 
+        guardar_datos_disco()
+        return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
     return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
 
 @app.route("/api/pendientes-impresion", methods=["GET"])
@@ -636,6 +683,7 @@ def obtener_pendientes_impresion():
 def marcar_como_impreso(lote_id):
     for b in boletos_db:
         if b["lote_id"] == lote_id: b["impreso"] = True
+    guardar_datos_disco()
     return jsonify({"status": "success"}), 200
 
 @app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
@@ -649,6 +697,7 @@ def api_reimprimir(boleto_id):
         return jsonify({"error": "Boleto no encontrado"}), 404
     
     boleto["impreso"] = False
+    guardar_datos_disco()
     return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora con éxito."}), 200
 
 @app.route("/impresion")
