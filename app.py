@@ -5,23 +5,52 @@ import requests
 
 app = Flask(__name__)
 
-# Configuración inicial de sorteos
+# ==========================================
+# CONFIGURACIÓN DE GREEN API (WHATSAPP)
+# ==========================================
+ID_INSTANCE = "710722782905"
+API_TOKEN_INSTANCE = "TU_TOKEN_DE_GREEN_API"  # Reemplaza con tu token de Green API
+
+
+def enviar_mensaje_whatsapp(telefono, texto):
+  url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
+  payload = {"chatId": f"{telefono}@c.us", "message": texto}
+  try:
+    requests.post(url, json=payload)
+  except Exception as e:
+    print(f"Error enviando mensaje Green API: {e}")
+
+
+def enviar_imagen_whatsapp(telefono, url_imagen, caption):
+  url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUrl/{API_TOKEN_INSTANCE}"
+  payload = {
+      "chatId": f"{telefono}@c.us",
+      "urlFile": url_imagen,
+      "fileName": "ticket_sorteo.png",
+      "caption": caption,
+  }
+  try:
+    requests.post(url, json=payload)
+  except Exception as e:
+    print(f"Error enviando imagen Green API: {e}")
+
+
+# ==========================================
+# BASE DE DATOS EN MEMORIA (SORTEOS Y BOLETOS)
+# ==========================================
 sorteos_db = [{
     "id": 1,
     "titulo": "S10 Más exclusiva del Py",
     "precio": 10000,
     "limite_boletos": 1000,
     "estado": "Activo",
-    "imagen_nombre": (
-        "flyer_sorteo.png"  # Nombre del archivo en la carpeta static
-    ),
+    "imagen_nombre": "flyer_sorteo.png",
 }]
 
 boletos_db = []
 contador_boletos_por_sorteo = {1: 1}
 lote_contador = 1
 
-# Memoria temporal para la conversación del bot de WhatsApp de cada cliente
 SESIONES_WHATSAPP = {}
 
 ADMIN_USERS = {
@@ -41,153 +70,155 @@ def admin_panel():
 
 
 # ==========================================
-# WEBHOOK DEL BOT DE WHATSAPP
+# WEBHOOK DEL BOT DE WHATSAPP (GREEN API)
 # ==========================================
 @app.route("/api/webhook/whatsapp", methods=["POST"])
 def webhook_whatsapp():
   datos = request.json
-  telefono = datos.get("telefono")
-  mensaje = datos.get("mensaje", "").strip()
-  tiene_imagen = datos.get("imagen_enviada", False)
 
-  if not telefono:
-    return jsonify({"error": "Falta el teléfono"}), 400
+  if not datos:
+    return jsonify({"status": "ignored"}), 200
 
-  if telefono not in SESIONES_WHATSAPP:
-    SESIONES_WHATSAPP[telefono] = {"paso": "INICIO", "datos": {}}
+  # Validamos si es un mensaje entrante de Green API
+  if (
+      "typeWebhook" in datos
+      and datos["typeWebhook"] == "incomingMessageReceived"
+  ):
+    senderData = datos.get("senderData", {})
+    messageData = datos.get("messageData", {})
 
-  sesion = SESIONES_WHATSAPP[telefono]
-  paso = sesion["paso"]
+    chat_id = senderData.get("chatId", "")
+    telefono = chat_id.split("@")[0] if "@" in chat_id else chat_id
 
-  # PASO 1: Saludo inicial y envío del flyer desde la carpeta static
-  if "hola" in mensaje.lower() or paso == "INICIO":
-    sesion["paso"] = "ESPERANDO_CANTIDAD"
-    sorteo = sorteos_db[0]
+    tipo_mensaje = messageData.get("typeMessage", "")
+    mensaje = ""
 
-    # URL pública absoluta del flyer ubicado en static/
-    url_flyer = request.host_url.rstrip("/") + url_for(
-        "static", filename=sorteo["imagen_nombre"]
-    )
-
-    caption = (
-        f"¡Hola! Bienvenido a *PRO CAR GROUP* eas 🚗\n\n🏆 *Sorteo:*"
-        f" {sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor del"
-        f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
-        " reservar hoy?\n*(Responde únicamente con el número, ej: '2')*"
-    )
-
-    enviar_imagen_whatsapp(telefono, url_flyer, caption)
-
-  # PASO 2: Recibir cantidad y mostrar datos bancarios
-  elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
-    cantidad = int(mensaje)
-    sesion["datos"]["cantidad"] = cantidad
-    sorteo = sorteos_db[0]
-    total = cantidad * sorteo["precio"]
-
-    primer_num = contador_boletos_por_sorteo.get(sorteo["id"], 1)
-    numeros_asignados = [
-        str(primer_num + i).zfill(5) for i in range(cantidad)
-    ]
-    sesion["datos"]["numeros"] = numeros_asignados
-
-    sesion["paso"] = "ESPERANDO_COMPROBANTE"
-    enviar_mensaje_whatsapp(
-        telefono,
-        f"🎟️ *¡Números Reservados!*\n\nSorteo: {sorteo['titulo']}\nTus números:"
-        f" {', '.join(numeros_asignados)}\nTotal a pagar: *{total:,}"
-        " Gs.*\n\n📂 *Datos para el pago:*\n🔸 *Alias / RUC:*"
-        " 80148499-5\n🔸 *Titular:* PRO CAR GROUP\n\n⏳ Tenés 15 minutos para"
-        " enviar la foto del comprobante.",
-    )
-
-  # PASO 3: Recibir comprobante (foto)
-  elif paso == "ESPERANDO_COMPROBANTE" or tiene_imagen:
-    enviar_mensaje_whatsapp(
-        telefono, "🤖 *Analizando seguridad del comprobante.* Aguardá unos segundos..."
-    )
-
-    sesion["paso"] = "CONFIRMAR_DATOS"
-    sesion["datos"]["nombre"] = "Edgar Franco"
-    sesion["datos"]["cedula"] = "4321212"
-
-    enviar_mensaje_whatsapp(
-        telefono,
-        "✅ *¡Pago Valido!*\n\n¿Generamos las boletas con tus datos"
-        " guardados?\n\n👤 *Titular:* Edgar Franco\n🆔 *CI:*"
-        " 4321212\n\n👉 *Respondé SÍ para confirmar o NO para cambiar.*",
-    )
-
-  # PASO 4: Confirmación final y envío del ticket con QR
-  elif paso == "CONFIRMAR_DATOS" and "si" in mensaje.lower():
-    enviar_mensaje_whatsapp(
-        telefono, "🔄 Registrando tu compra y generando boletas. Por favor aguardá..."
-    )
-
-    sorteo = sorteos_db[0]
-    numeros = sesion["datos"]["numeros"]
-    nombre = sesion["datos"]["nombre"]
-    cedula = sesion["datos"]["cedula"]
-    telefono_cliente = telefono
-
-    current_lote = lote_contador
-    globals()["lote_contador"] += 1
-
-    for num_str in numeros:
-      num_int = int(num_str)
-      nuevo_boleto = {
-          "id": num_int,
-          "sorteo_id": sorteo["id"],
-          "lote_id": current_lote,
-          "nombre": nombre,
-          "telefono": telefono_cliente,
-          "cedula": cedula,
-          "cantidad_lote": len(numeros),
-          "estado": "Aprobado",
-          "impreso": False,  # Esto activa automáticamente la impresora de Ariel
-      }
-      boletos_db.append(nuevo_boleto)
-
-    contador_boletos_por_sorteo[sorteo["id"]] += len(numeros)
-
-    for num_str in numeros:
-      url_imagen_ticket = f"{request.host_url.rstrip('/')}/api/ticket-imagen/{int(num_str)}"
-      caption = (
-          f"✨ *¡Venta Completada!*\n\nCLIENTE: {nombre}\nCI:"
-          f" {cedula}\nEDICION: {sorteo['titulo']}\nA: Gs."
-          f" {sorteo['precio']:,}\nNRO: #{num_str}\n\n🍀 *¡Muchísima suerte para"
-          " PRO CAR GROUP!*"
+    if tipo_mensaje == "textMessage":
+      mensaje = messageData.get("textMessageData", {}).get("textMessage", "")
+    elif tipo_mensaje == "extendedTextMessage":
+      mensaje = (
+          messageData.get("extendedTextMessageData", {})
+          .get("text", "")
+          .strip()
       )
-      enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
 
-    sesion["paso"] = "INICIO"
+    if not telefono or not mensaje:
+      return jsonify({"status": "ok"}), 200
+
+    mensaje_lower = mensaje.lower()
+
+    if telefono not in SESIONES_WHATSAPP:
+      SESIONES_WHATSAPP[telefono] = {"paso": "INICIO", "datos": {}}
+
+    sesion = SESIONES_WHATSAPP[telefono]
+    paso = sesion["paso"]
+
+    # PASO 1: Saludo inicial y envío del flyer
+    if "hola" in mensaje_lower or paso == "INICIO":
+      sesion["paso"] = "ESPERANDO_CANTIDAD"
+      sorteo = sorteos_db[0]
+
+      url_flyer = request.host_url.rstrip("/") + url_for(
+          "static", filename=sorteo["imagen_nombre"]
+      )
+
+      caption = (
+          f"¡Hola! Bienvenido a *PRO CAR GROUP* 🚗\n\n🏆 *Sorteo:* "
+          f"{sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor del"
+          f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
+          " reservar hoy?\n*(Responde únicamente con el número, ej: '2')*"
+      )
+
+      enviar_imagen_whatsapp(telefono, url_flyer, caption)
+
+    # PASO 2: Recibir cantidad y mostrar datos bancarios
+    elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
+      cantidad = int(mensaje)
+      sesion["datos"]["cantidad"] = cantidad
+      sorteo = sorteos_db[0]
+      total = cantidad * sorteo["precio"]
+
+      primer_num = contador_boletos_por_sorteo.get(sorteo["id"], 1)
+      numeros_asignados = [
+          str(primer_num + i).zfill(5) for i in range(cantidad)
+      ]
+      sesion["datos"]["numeros"] = numeros_asignados
+
+      sesion["paso"] = "ESPERANDO_COMPROBANTE"
+      enviar_mensaje_whatsapp(
+          telefono,
+          f"🎟️ *¡Números Reservados!*\n\nSorteo: {sorteo['titulo']}\nTus números:"
+          f" {', '.join(numeros_asignados)}\nTotal a pagar: *{total:,}"
+          " Gs.*\n\n📂 *Datos para el pago:*\n🔸 *Alias / RUC:*"
+          " 80148499-5\n🔸 *Titular:* PRO CAR GROUP\n\n⏳ Tenés 15 minutos para"
+          " enviar la foto del comprobante.",
+      )
+
+    # PASO 3: Recibir comprobante (simulado)
+    elif paso == "ESPERANDO_COMPROBANTE":
+      enviar_mensaje_whatsapp(
+          telefono,
+          "🤖 *Analizando seguridad del comprobante.* Aguardá unos segundos...",
+      )
+
+      sesion["paso"] = "CONFIRMAR_DATOS"
+      sesion["datos"]["nombre"] = "Edgar Franco"
+      sesion["datos"]["cedula"] = "4321212"
+
+      enviar_mensaje_whatsapp(
+          telefono,
+          "✅ *¡Pago Válido!*\n\n¿Generamos las boletas con tus datos"
+          " guardados?\n\n👤 *Titular:* Edgar Franco\n🆔 *CI:*"
+          " 4321212\n\n👉 *Respondé SÍ para confirmar o NO para cambiar.*",
+      )
+
+    # PASO 4: Confirmación final y envío del ticket con QR
+    elif paso == "CONFIRMAR_DATOS" and "si" in mensaje_lower:
+      enviar_mensaje_whatsapp(
+          telefono,
+          "🔄 Registrando tu compra y generando boletas. Por favor aguardá...",
+      )
+
+      sorteo = sorteos_db[0]
+      numeros = sesion["datos"]["numeros"]
+      nombre = sesion["datos"]["nombre"]
+      cedula = sesion["datos"]["cedula"]
+      telefono_cliente = telefono
+
+      global lote_contador
+      current_lote = lote_contador
+      lote_contador += 1
+
+      for num_str in numeros:
+        num_int = int(num_str)
+        nuevo_boleto = {
+            "id": num_int,
+            "sorteo_id": sorteo["id"],
+            "lote_id": current_lote,
+            "nombre": nombre,
+            "telefono": telefono_cliente,
+            "cedula": cedula,
+            "cantidad_lote": len(numeros),
+            "estado": "Aprobado",
+            "impreso": False,  # Habilita la impresión automática en la oficina
+        }
+        boletos_db.append(nuevo_boleto)
+
+      contador_boletos_por_sorteo[sorteo["id"]] += len(numeros)
+
+      for num_str in numeros:
+        url_imagen_ticket = f"{request.host_url.rstrip('/')}/api/ticket-imagen/{int(num_str)}"
+        caption = (
+            f"✨ *¡Venta Completada!*\n\nCLIENTE: {nombre}\nCI:"
+            f" {cedula}\nEDICION: {sorteo['titulo']}\nA: Gs."
+            f" {sorteo['precio']:,}\nNRO: #{num_str}\n\n🍀 *¡Muchísima suerte para"
+            " PRO CAR GROUP!*"
+        )
+        enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
+
+      sesion["paso"] = "INICIO"
 
   return jsonify({"status": "ok"}), 200
-
-
-def enviar_mensaje_whatsapp(telefono, texto):
-  api_url = "https://tu-api-de-whatsapp.com/message/sendText"
-  headers = {"apikey": "TU_TOKEN_SECRETO"}
-  payload = {"number": telefono, "text": texto}
-  try:
-    requests.post(api_url, json=payload, headers=headers)
-  except Exception as e:
-    print(f"Error enviando texto WhatsApp: {e}")
-
-
-def enviar_imagen_whatsapp(telefono, url_imagen, caption):
-  api_url = "https://tu-api-de-whatsapp.com/message/sendMedia"
-  headers = {"apikey": "TU_TOKEN_SECRETO"}
-  payload = {
-      "number": telefono,
-      "mediatype": "image",
-      "media": url_imagen,
-      "caption": caption,
-  }
-  try:
-    requests.post(api_url, json=payload, headers=headers)
-  except Exception as e:
-    print(f"Error enviando imagen WhatsApp: {e}")
 
 
 # ==========================================
