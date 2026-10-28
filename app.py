@@ -18,9 +18,10 @@ def enviar_mensaje_whatsapp(telefono, texto):
   url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
   payload = {"chatId": f"{telefono}@c.us", "message": texto}
   try:
-    requests.post(url, json=payload)
+    res = requests.post(url, json=payload)
+    print(f"📤 Respuesta sendMessage: {res.status_code} - {res.text}")
   except Exception as e:
-    print(f"Error enviando mensaje Green API: {e}")
+    print(f"❌ Error enviando mensaje Green API: {e}")
 
 
 def enviar_imagen_whatsapp(telefono, url_imagen, caption):
@@ -32,9 +33,10 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
       "caption": caption,
   }
   try:
-    requests.post(url, json=payload)
+    res = requests.post(url, json=payload)
+    print(f"📤 Respuesta sendFileByUrl: {res.status_code} - {res.text}")
   except Exception as e:
-    print(f"Error enviando imagen Green API: {e}")
+    print(f"❌ Error enviando imagen Green API: {e}")
 
 
 # ==========================================
@@ -103,6 +105,10 @@ def webhook_whatsapp():
       return jsonify({"status": "ok"}), 200
 
     mensaje_lower = mensaje.lower().strip()
+    print(
+        f"📩 Mensaje recibido de {telefono}: {mensaje_lower} (Paso actual:"
+        f" {SESIONES_WHATSAPP.get(telefono, {}).get('paso', 'INICIO')})"
+    )
 
     if telefono not in SESIONES_WHATSAPP:
       SESIONES_WHATSAPP[telefono] = {"paso": "INICIO", "datos": {}}
@@ -110,24 +116,19 @@ def webhook_whatsapp():
     sesion = SESIONES_WHATSAPP[telefono]
     paso = sesion["paso"]
 
-    # PASO 1: Saludo inicial y envío del flyer
+    # PASO 1: Saludo inicial y envío de texto + flyer
     if "hola" in mensaje_lower or paso == "INICIO":
       sesion["paso"] = "ESPERANDO_CANTIDAD"
       sorteo = sorteos_db[0]
 
-      url_flyer = request.host_url.rstrip("/") + url_for(
-          "static", filename=sorteo["imagen_nombre"]
+      # Primero enviamos un saludo de texto para asegurar respuesta inmediata
+      enviar_mensaje_whatsapp(
+          telefono,
+          f"¡Hola! Bienvenido a *PRO CAR GROUP* 🚗\n\n🏆 *Sorteo:* "
+          f"{sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor del"
+          f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
+          " reservar hoy?\n*(Responde únicamente con el número, ej: '2')*",
       )
-
-      caption = (
-          f"¡Hola! Bienvenido a *PRO CAR GROUP* 🚗\n\n🏆 *Sorteo:*"
-          f" {sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor"
-          f" del ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te"
-          " gustaría reservar hoy?\n*(Responde únicamente con el número, ej:"
-          " '2')*"
-      )
-
-      enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
     # PASO 2: Recibir cantidad y mostrar datos bancarios
     elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
@@ -217,7 +218,7 @@ def webhook_whatsapp():
       sesion["paso"] = "INICIO"
 
   except Exception as e:
-    print(f"Error procesando webhook: {e}")
+    print(f"❌ Error procesando webhook: {e}")
 
   return jsonify({"status": "ok"}), 200
 
