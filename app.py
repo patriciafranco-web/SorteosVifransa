@@ -143,7 +143,7 @@ def webhook_whatsapp():
 
       enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
-    # PASO 2: Recibir cantidad, reservar números y pedir comprobante
+    # PASO 2: Recibir cantidad, reservar números y pedir datos
     elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
       cantidad = int(mensaje)
       sesion["datos"]["cantidad"] = cantidad
@@ -184,13 +184,17 @@ def webhook_whatsapp():
           " del comprobante de pago** para que el equipo lo verifique.",
       )
 
-    # PASO 4: Recibir comprobante (Foto), guardar como PENDIENTE y avisar al admin
+    # PASO 4: Recibir comprobante (Foto), extraer URL y guardar como PENDIENTE
     elif paso == "ESPERANDO_COMPROBANTE" and es_imagen:
       sorteo = sorteos_db[0]
       numeros = sesion["datos"]["numeros"]
       nombre = sesion["datos"]["nombre"]
       cedula = sesion["datos"]["cedula"]
       telefono_cliente = telefono
+
+      # Extraer la URL de la foto de Green API
+      file_data = messageData.get("fileMessageData", {})
+      download_url = file_data.get("downloadUrl", "")
 
       global lote_contador
       current_lote = lote_contador
@@ -206,7 +210,10 @@ def webhook_whatsapp():
             "telefono": telefono_cliente,
             "cedula": cedula,
             "cantidad_lote": len(numeros),
-            "estado": "Pendiente",  # Queda pendiente hasta que el admin apruebe
+            "imagen_comprobante": (
+                download_url  # URL real del comprobante enviado
+            ),
+            "estado": "Pendiente",
             "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
@@ -220,7 +227,6 @@ def webhook_whatsapp():
           " QR en breve. ¡Muchas gracias!",
       )
 
-      # Reiniciar sesión para futuros mensajes
       sesion["paso"] = "INICIO"
 
   except Exception as e:
@@ -306,7 +312,7 @@ def obtener_ticket_imagen(boleto_id):
 
 
 # ==========================================
-# API DE ADMINISTRACIÓN (PANEL ADMIN)
+# API DE ADMINISTRACIÓN
 # ==========================================
 def verificar_admin(data):
   usuario = data.get("usuario")
@@ -336,7 +342,6 @@ def admin_aprobar(boleto_id):
     if b["id"] == boleto_id and b["sorteo_id"] == sorteo_id:
       b["estado"] = "Aprobado"
 
-      # Enviar boleto digital con QR por WhatsApp automáticamente al cliente
       telefono = b["telefono"]
       nombre = b["nombre"]
       cedula = b["cedula"]
