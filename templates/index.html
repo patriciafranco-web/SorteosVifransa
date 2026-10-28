@@ -107,7 +107,7 @@
 
     <script>
         let precioBase = 10000;
-        let datosReservaTemporal = null;
+        let loteActualId = null; // Almacenará el ID del lote creado en la primera petición
 
         async function cargarSorteoActivo() {
             const res = await fetch('/api/sorteos');
@@ -136,6 +136,7 @@
             });
         }
 
+        // PASO 1: Registro y reserva inicial
         document.getElementById('formCompra').addEventListener('submit', async (e) => {
             e.preventDefault();
             const resDiv = document.getElementById('resultadoCompra');
@@ -153,20 +154,14 @@
                     nombre: document.getElementById('nombre').value,
                     cedula: document.getElementById('cedula').value,
                     telefono: document.getElementById('telefono').value,
-                    cantidad: cantidad,
-                    imagen_comprobante: ""
+                    cantidad: cantidad
                 })
             });
             const data = await res.json();
             
             if(res.ok) {
                 resDiv.innerText = "";
-                datosReservaTemporal = {
-                    nombre: document.getElementById('nombre').value,
-                    cedula: document.getElementById('cedula').value,
-                    telefono: document.getElementById('telefono').value,
-                    cantidad: cantidad
-                };
+                loteActualId = data.lote_id; // Guardamos el lote_id único generado
                 
                 document.getElementById('labelRangoNumeros').innerText = data.rango;
                 document.getElementById('montoFinalTransferencia').innerText = `Gs. ${totalPagar.toLocaleString()}`;
@@ -178,6 +173,7 @@
             }
         });
 
+        // PASO 2: Enviar únicamente el comprobante usando el lote existente
         async function enviarComprobante() {
             const resDiv = document.getElementById('resultadoCompra');
             let imagenBase64 = "";
@@ -194,18 +190,20 @@
                 return;
             }
 
+            if(!loteActualId) {
+                alert("Error: No se encontró el identificador del lote. Vuelve a iniciar el proceso.");
+                return;
+            }
+
             resDiv.className = "mt-4 text-center font-semibold text-amber-400";
             resDiv.innerText = "Enviando comprobante...";
 
-            const res = await fetch('/api/comprar', {
+            // CORRECCIÓN: Llamamos a la ruta específica de subir comprobante y NO a /api/comprar
+            const res = await fetch('/api/subir-comprobante', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    sorteo_id: parseInt(document.getElementById('sorteoId').value),
-                    nombre: datosReservaTemporal.nombre,
-                    cedula: datosReservaTemporal.cedula,
-                    telefono: datosReservaTemporal.telefono,
-                    cantidad: datosReservaTemporal.cantidad,
+                    lote_id: loteActualId,
                     imagen_comprobante: imagenBase64
                 })
             });
@@ -228,6 +226,7 @@
             document.getElementById('resultadoCompra').innerText = "";
             document.getElementById('seccionComprobante').classList.add('hidden');
             document.getElementById('seccionFormulario').classList.remove('hidden');
+            loteActualId = null;
             calcularTotal();
         }
 
