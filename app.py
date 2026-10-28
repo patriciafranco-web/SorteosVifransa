@@ -61,7 +61,7 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 # ==========================================
 # BASE DE DATOS Y PERSISTENCIA EN DISCO
 # ==========================================
-ARCHIVO_DATOS = "datos_vifran.json"
+ARCHIVO_DATOS = "/var/data/datos_vifran.json"
 
 sorteos_db = [{
     "id": 1,
