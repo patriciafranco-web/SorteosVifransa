@@ -2,266 +2,114 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sorteos Vifran Group S.A. - Plataforma Oficial</title>
+    <title>Vifran Group S.A. - Sorteos</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen p-4 md:p-6 font-sans">
-    <div class="max-w-5xl mx-auto space-y-6">
-        <header class="text-center my-4 space-y-2">
-            <h1 class="text-3xl font-extrabold text-amber-400">Sorteos Vifran Group S.A.</h1>
-            <p class="text-slate-300 text-sm italic">"Tu suerte, nuestro compromiso"</p>
-        </header>
-
-        <!-- Contenedor Principal: Flyer al lado y Formulario -->
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            
-            <!-- Columna Izquierda: Flyer Oficial -->
-            <div class="md:col-span-5 bg-slate-800 p-4 rounded-2xl shadow-lg border border-slate-700 text-center space-y-3">
-                <h2 class="text-lg font-bold text-amber-300">📱 Sorteo de 4 iPhones</h2>
-                <div class="rounded-xl overflow-hidden shadow-md border border-slate-700 bg-slate-900">
-                    <img src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Sorteo de 4 iPhones - Vifran Group S.A." class="w-full h-auto object-cover">
-                </div>
-                <p class="text-xs text-amber-300 font-semibold">🎁 ¡4 Premios / 4 Ganadores! (Un iPhone para cada ganador)</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
+    <div class="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <h1 class="text-xl font-bold text-amber-400 mb-4 text-center">🎟️ Sorteos Vifran Group S.A.</h1>
+        
+        <form id="formCompra" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Seleccionar Sorteo:</label>
+                <select id="selectSorteo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
+                    <option value="1">Gran Sorteo Camioneta 0km</option>
+                </select>
             </div>
 
-            <!-- Columna Derecha: Formulario dinámico -->
-            <div class="md:col-span-7 bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-700">
-                
-                <!-- PASO 1: Formulario de Registro Inicial -->
-                <div id="seccionFormulario">
-                    <h2 class="text-xl font-bold mb-1 text-amber-300">🎟️ Comprar Tu Boleto</h2>
-                    <p class="text-xs text-amber-400/80 mb-4 font-semibold">Costo por boleto: Gs. <span id="textoPrecioUnitario">10.000</span></p>
-                    
-                    <form id="formCompra" class="space-y-4">
-                        <input type="hidden" id="sorteoId" value="1">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Nombre Completo</label>
-                            <input type="text" id="nombre" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Cédula de Identidad</label>
-                            <input type="text" id="cedula" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Teléfono / WhatsApp</label>
-                            <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Cantidad de Boletos</label>
-                            <input type="number" id="cantidad" min="1" value="1" oninput="calcularTotal()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-bold text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        </div>
-                        <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-center">
-                            <p class="text-xs text-slate-400">TOTAL A PAGAR:</p>
-                            <p id="totalPagar" class="text-xl font-extrabold text-amber-400">Gs. 10.000</p>
-                        </div>
-                        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 font-bold py-3.5 rounded-xl text-slate-950 transition shadow-lg">Reservar Boletos y Ver Datos de Pago</button>
-                    </form>
-                </div>
-
-                <!-- PASO 2: Confirmación y Subida de Comprobante -->
-                <div id="seccionComprobante" class="hidden space-y-4">
-                    <div class="bg-emerald-500/10 border border-emerald-500/40 p-4 rounded-xl text-center space-y-2">
-                        <h3 class="text-lg font-bold text-emerald-400">¡Boletos Reservados con Éxito! 🎉</h3>
-                        <p class="text-xs text-slate-300">Tus números asignados temporalmente son:</p>
-                        <p id="labelRangoNumeros" class="text-2xl font-black text-amber-400">#00</p>
-                    </div>
-
-                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-sm space-y-2">
-                        <p class="font-bold text-amber-400">🏦 Realiza tu transferencia por ueno Empresas:</p>
-                        <p class="text-slate-300"><b>Titular:</b> Patricia Franco (Vifran Group S.A.)</p>
-                        <p class="text-slate-300"><b>RUC:</b> 4775796-5</p>
-                        <p class="text-slate-300"><b>Banco ueno Empresas:</b> Cuenta Corriente</p>
-                        <p class="text-emerald-400 font-bold mt-1">Monto Exacto a Transferir: <span id="montoFinalTransferencia" class="text-white text-base">Gs. 10.000</span></p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block text-sm font-medium mb-1">Adjunta la Foto de tu Comprobante de Pago</label>
-                        <input type="file" id="fotoComprobante" accept="image/*" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400">
-                    </div>
-
-                    <button onclick="enviarComprobante()" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-3.5 rounded-xl text-white transition shadow-lg">Enviar Comprobante para Validación Final</button>
-                    
-                    <button onclick="reiniciarFormulario()" class="w-full bg-slate-700 hover:bg-slate-600 text-xs font-semibold py-2.5 rounded-xl text-slate-300 transition">← Volver / Modificar datos</button>
-                </div>
-
-                <div id="resultadoCompra" class="mt-4 text-center font-semibold text-sm"></div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Nombre y Apellido:</label>
+                <input type="text" id="nombre" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
             </div>
-        </div>
 
-        <!-- Módulo de Consulta Pública -->
-        <div class="max-w-xl mx-auto bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-700">
-            <h2 class="text-xl font-bold mb-4 text-amber-300">🔍 Consultar Mis Boletos</h2>
-            <div class="flex gap-2">
-                <input type="text" id="terminoConsulta" placeholder="Ingresa tu Cédula o Teléfono" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-                <button onclick="consultarBoletos()" class="bg-indigo-600 hover:bg-indigo-500 font-bold px-5 rounded-xl text-white transition">Buscar</button>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Cédula de Identidad:</label>
+                <input type="text" id="cedula" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
             </div>
-            <div id="resultadoConsulta" class="mt-4 space-y-2"></div>
-        </div>
 
-        <!-- Acceso Administrativo -->
-        <footer class="text-center pt-4 pb-8 border-t border-slate-800">
-            <a href="/admin" class="text-xs text-slate-500 hover:text-amber-400 transition">🔒 Acceso Administrativo</a>
-        </footer>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Teléfono (WhatsApp):</label>
+                <input type="text" id="telefono" placeholder="Ej: 595981047851" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Método de Pago:</label>
+                <select id="metodoPago" onchange="mostrarOpcionesPago()" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
+                    <option value="Transferencia Directa">Transferencia Bancaria / ueno / Eko</option>
+                    <option value="Cripto (USDT)">Binance Pay (USDT)</option>
+                </select>
+            </div>
+
+            <!-- Bloque Opción Binance Pay con Conversión Automática -->
+            <div id="infoCrypto" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
+                <p class="font-bold text-amber-400">🪙 Pago vía Binance Pay (USDT):</p>
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
+                    <p class="text-emerald-400 font-bold">Monto exacto a enviar: <span id="montoUSDT" class="text-white text-sm font-mono">6.50</span> USDT</p>
+                    <p class="text-slate-400">📧 Correo: <span class="text-white">patricia99franco@gmail.com</span></p>
+                    <p class="text-slate-400">🆔 Binance ID: <span class="text-white">40280723</span></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Ingresa el Nro. de Orden o ID de Transacción de Binance:</label>
+                    <input type="text" id="hashCrypto" placeholder="Ej: 8493029102" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl transition duration-200">
+                Comprar Boletos
+            </button>
+        </form>
+
+        <div id="resultadoCompra" class="mt-4 text-center text-sm font-semibold"></div>
     </div>
 
     <script>
-        let precioBase = 10000;
-        let loteActualId = null; // Almacenará el ID del lote creado en la primera petición
+        const TASA_USDT_GS = 7800; 
+        const PRECIO_BOLETO_GS = 50000;
 
-        async function cargarSorteoActivo() {
-            const res = await fetch('/api/sorteos');
-            const data = await res.json();
-            if(data.sorteos && data.sorteos.length > 0) {
-                const sorteo = data.sorteos[0];
-                document.getElementById('sorteoId').value = sorteo.id;
-                precioBase = sorteo.precio;
-                document.getElementById('textoPrecioUnitario').innerText = precioBase.toLocaleString();
-                calcularTotal();
+        function mostrarOpcionesPago() {
+            const metodo = document.getElementById('metodoPago').value;
+            const infoCrypto = document.getElementById('infoCrypto');
+            
+            if (metodo.includes('Cripto')) {
+                infoCrypto.classList.remove('hidden');
+                let totalUSDT = (PRECIO_BOLETO_GS / TASA_USDT_GS).toFixed(2);
+                document.getElementById('montoUSDT').innerText = totalUSDT;
+            } else {
+                infoCrypto.classList.add('hidden');
             }
         }
 
-        function calcularTotal() {
-            const cant = parseInt(document.getElementById('cantidad').value) || 1;
-            const total = cant * precioBase;
-            document.getElementById('totalPagar').innerText = `Gs. ${total.toLocaleString()}`;
-        }
-
-        function convertirImagenABase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-        }
-
-        // PASO 1: Registro y reserva inicial
         document.getElementById('formCompra').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const resDiv = document.getElementById('resultadoCompra');
-            resDiv.className = "mt-4 text-center font-semibold text-amber-400";
-            resDiv.innerText = "Reservando boletos...";
-
-            const cantidad = parseInt(document.getElementById('cantidad').value);
-            const totalPagar = cantidad * precioBase;
+            const metodo = document.getElementById('metodoPago').value;
+            const detallePagoFinal = metodo.includes('Cripto') 
+                ? document.getElementById('hashCrypto').value 
+                : 'Transferencia Directa';
 
             const res = await fetch('/api/comprar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    sorteo_id: parseInt(document.getElementById('sorteoId').value),
+                    sorteo_id: document.getElementById('selectSorteo').value,
                     nombre: document.getElementById('nombre').value,
                     cedula: document.getElementById('cedula').value,
                     telefono: document.getElementById('telefono').value,
-                    cantidad: cantidad
+                    metodo_pago: metodo,
+                    detalle_pago: detallePagoFinal
                 })
             });
             const data = await res.json();
-            
+            const resDiv = document.getElementById('resultadoCompra');
             if(res.ok) {
-                resDiv.innerText = "";
-                loteActualId = data.lote_id; // Guardamos el lote_id único generado
-                
-                document.getElementById('labelRangoNumeros').innerText = data.rango;
-                document.getElementById('montoFinalTransferencia').innerText = `Gs. ${totalPagar.toLocaleString()}`;
-                document.getElementById('seccionFormulario').classList.add('hidden');
-                document.getElementById('seccionComprobante').classList.remove('hidden');
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-emerald-400";
+                resDiv.innerText = `${data.mensaje} Número asignado temporalmente: #${data.boleto.id}`;
+                document.getElementById('formCompra').reset();
+                mostrarOpcionesPago();
             } else {
-                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-rose-400";
                 resDiv.innerText = data.error;
             }
         });
-
-        // PASO 2: Enviar únicamente el comprobante usando el lote existente
-        async function enviarComprobante() {
-            const resDiv = document.getElementById('resultadoCompra');
-            let imagenBase64 = "";
-            const fileInput = document.getElementById('fotoComprobante');
-            
-            if(fileInput.files.length > 0) {
-                try {
-                    imagenBase64 = await convertirImagenABase64(fileInput.files[0]);
-                } catch(err) { console.error("Error al leer imagen", err); }
-            }
-
-            if(!imagenBase64) {
-                alert("Por favor adjunta la foto de tu comprobante de transferencia.");
-                return;
-            }
-
-            if(!loteActualId) {
-                alert("Error: No se encontró el identificador del lote. Vuelve a iniciar el proceso.");
-                return;
-            }
-
-            resDiv.className = "mt-4 text-center font-semibold text-amber-400";
-            resDiv.innerText = "Enviando comprobante...";
-
-            // CORRECCIÓN DEFINITIVA: Llamamos a la ruta específica de subir comprobante y NO a /api/comprar
-            const res = await fetch('/api/subir-comprobante', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    lote_id: loteActualId,
-                    imagen_comprobante: imagenBase64
-                })
-            });
-            const data = await res.json();
-
-            if(res.ok) {
-                resDiv.className = "mt-4 text-center font-semibold text-emerald-400";
-                resDiv.innerText = "¡Comprobante enviado con éxito! Quedas a la espera de aprobación del administrador.";
-                
-                // Limpiamos la variable para evitar doble envío
-                loteActualId = null;
-
-                setTimeout(() => {
-                    reiniciarFormulario();
-                }, 4000);
-            } else {
-                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
-                resDiv.innerText = data.error;
-            }
-        }
-
-        function reiniciarFormulario() {
-            document.getElementById('formCompra').reset();
-            document.getElementById('fotoComprobante').value = "";
-            document.getElementById('resultadoCompra').innerText = "";
-            document.getElementById('seccionComprobante').classList.add('hidden');
-            document.getElementById('seccionFormulario').classList.remove('hidden');
-            loteActualId = null;
-            calcularTotal();
-        }
-
-        async function consultarBoletos() {
-            const termino = document.getElementById('terminoConsulta').value.trim();
-            if(!termino) return;
-            const res = await fetch('/api/consultar', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ termino })
-            });
-            const data = await res.json();
-            const container = document.getElementById('resultadoConsulta');
-            container.innerHTML = '';
-            if(data.encontrado) {
-                data.boletos.forEach(b => {
-                    container.innerHTML += `<div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center text-sm">
-                        <div>
-                            <p class="font-bold text-amber-400">Boleto #${b.id} (${b.sorteo_titulo || 'Sorteo'})</p>
-                            <p class="text-xs text-slate-400">${b.nombre} - Tel: ${b.telefono}</p>
-                        </div>
-                        <span class="px-2.5 py-1 rounded-lg text-xs font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}">${b.estado}</span>
-                    </div>`;
-                });
-            } else {
-                container.innerHTML = `<p class="text-slate-400 text-center text-sm">${data.mensaje}</p>`;
-            }
-        }
-
-        cargarSorteoActivo();
     </script>
 </body>
 </html>
