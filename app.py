@@ -11,9 +11,7 @@ app = Flask(__name__)
 # CONFIGURACIÓN DE GREEN API (WHATSAPP)
 # ==========================================
 ID_INSTANCE = "710722782905"
-API_TOKEN_INSTANCE = (
-    "085f2d211be547b9a9377b0021c03faf845beb16436644748b"
-)
+API_TOKEN_INSTANCE = "085f2d211be547b9a9377b0021c03faf845beb16436644748b"
 
 def formatear_telefono(telefono):
     """Limpia y formatea el número para WhatsApp a prueba de fallos (Ej: Paraguay 595...)"""
@@ -54,25 +52,21 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
             print(f"❌ Error enviando imagen Green API: {e}")
     threading.Thread(target=tarea).start()
 
-# --- NUEVA FUNCIÓN DE ENVÍO DIRECTO POR UPLOAD (EVITA BLOQUEOS) ---
 def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
     def tarea():
         tel_formateado = formatear_telefono(telefono)
         
-        # 1. Enviamos primero un mensaje de texto avisando
         url_txt = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
         try:
             requests.post(url_txt, json={"chatId": f"{tel_formateado}@c.us", "message": "✅ *¡Pago verificado!* Generando tu boleto oficial con QR..."})
         except Exception as e:
             print(f"❌ Error enviando aviso previo: {e}")
         
-        # 2. Generamos la imagen en memoria
         output = crear_imagen_boleto_memoria(boleto_id, host_url)
         if not output:
             print("❌ Error: No se pudo generar la imagen del ticket en memoria.")
             return
         
-        # 3. Subimos el archivo directamente vía API de Green API
         url_up = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUpload/{API_TOKEN_INSTANCE}"
         payload = {'chatId': f"{tel_formateado}@c.us", 'caption': caption}
         files = [('file', (f'ticket_{boleto_id}.png', output.getvalue(), 'image/png'))]
@@ -99,10 +93,11 @@ sorteos_db = [{
 }]
 
 boletos_db = []
+clientes_db = {}  # 🗂️ NUEVA BASE DE DATOS DE CLIENTES {telefono: {"nombre": ..., "cedula": ...}}
 contador_boletos_por_sorteo = {1: 1}
 lote_contador = 1
 
-lotes_pendientes = {}   
+lotes_pendientes = {}    
 numeros_liberados = {}  
 
 SESIONES_WHATSAPP = {}
@@ -181,9 +176,15 @@ def comprar():
     telefono = data.get("telefono")
     cedula = data.get("cedula")
     cantidad = int(data.get("cantidad", 1))
+    
+    metodo_pago = data.get("metodo_pago", "Transferencia Directa")
+    detalle_pago = data.get("detalle_pago", "")
 
     if not nombre or not telefono or not cedula or cantidad < 1:
         return jsonify({"error": "Todos los campos son obligatorios."}), 400
+
+    # 🗂️ Guardar o actualizar cliente automáticamente en la base de datos
+    clientes_db[telefono] = {"nombre": nombre, "cedula": cedula}
 
     sorteo_activo = next((s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"), None)
     if not sorteo_activo:
@@ -209,7 +210,6 @@ def comprar():
             contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
         nuevos_boletos_ids.append(num_boleto)
 
-    nuevos_boletos = []
     for num_boleto in nuevos_boletos_ids:
         nuevo_boleto = {
             "id": num_boleto,
@@ -220,11 +220,12 @@ def comprar():
             "cedula": cedula,
             "cantidad_lote": cantidad,
             "imagen_comprobante": "",
+            "metodo_pago": metodo_pago,
+            "detalle_pago": detalle_pago,
             "estado": "Pendiente",
             "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
-        nuevos_boletos.append(nuevo_boleto)
 
     lotes_pendientes[current_lote] = {
         "telefono": telefono,
@@ -242,30 +243,8 @@ def comprar():
         "mensaje": f"¡Compra de {cantidad} boleto(s) registrada!",
         "rango": rango_str,
         "lote_id": current_lote,
+        "boleto": {"id": nuevos_boletos_ids[0]}
     }), 200
-
-
-@app.route("/api/subir-comprobante", methods=["POST"])
-def subir_comprobante():
-    data = request.json
-    lote_id = data.get("lote_id")
-    imagen_comprobante = data.get("imagen_comprobante", "")
-
-    if not lote_id or not imagen_comprobante:
-        return jsonify({"error": "Datos incompletos para actualizar el comprobante."}), 400
-
-    actualizados = 0
-    for b in boletos_db:
-        if b["lote_id"] == lote_id:
-            b["imagen_comprobante"] = imagen_comprobante
-            actualizados += 1
-
-    if actualizados > 0:
-        if lote_id in lotes_pendientes:
-            del lotes_pendientes[lote_id]
-        return jsonify({"mensaje": "Comprobante actualizado correctamente."}), 200
-    else:
-        return jsonify({"error": "Lote no encontrado."}), 404
 
 
 @app.route("/api/consultar", methods=["POST"])
@@ -370,6 +349,9 @@ def webhook_whatsapp():
             sesion["datos"]["nombre"] = nombre_cliente
             sesion["datos"]["cedula"] = cedula_cliente
 
+            # 🗂️ Guardar o actualizar cliente desde WhatsApp
+            clientes_db[telefono] = {"nombre": nombre_cliente, "cedula": cedula_cliente}
+
             sorteo = sorteos_db[0]
             cantidad = sesion["datos"]["cantidad"]
 
@@ -401,6 +383,8 @@ def webhook_whatsapp():
                     "cedula": cedula_cliente,
                     "cantidad_lote": cantidad,
                     "imagen_comprobante": "",
+                    "metodo_pago": "WhatsApp / ueno",
+                    "detalle_pago": "Transferencia Directa",
                     "estado": "Pendiente",
                     "impreso": False,
                 }
@@ -481,7 +465,7 @@ def crear_imagen_boleto_memoria(boleto_id, host_url):
     d.text((20, 90), f"RUC/CI: {boleto['cedula']} | TEL: {boleto['telefono']}", fill="black", font=font_texto)
     d.line([(20, 115), (ancho - 20, 115)], fill="black", width=1)
     d.text((20, 130), f"EDICION: {sorteo_titulo}", fill="black", font=font_texto)
-    d.text((20, 155), "A: 10.000 Gs.", fill="black", font=font_texto)
+    d.text((20, 155), f"PAGO: {boleto.get('metodo_pago', 'Directo')}", fill="black", font=font_texto)
     d.line([(20, 180), (ancho - 20, 180)], fill="black", width=1)
     d.text((ancho / 2, 210), f"NRO: #{str(boleto['id']).zfill(5)}", fill="black", anchor="mm", font=font_grande)
     d.line([(20, 240), (ancho - 20, 240)], fill="black", width=1)
@@ -516,18 +500,7 @@ def obtener_ticket_imagen(boleto_id):
 def validar_boleto_qr(boleto_id):
     boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
     if not boleto:
-        return """
-            <!DOCTYPE html>
-            <html lang="es">
-            <head><meta charset="UTF-8"><title>Boleto No Encontrado</title><script src="https://cdn.tailwindcss.com"></script></head>
-            <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4 font-sans">
-                <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 text-center max-w-md w-full space-y-4">
-                    <h1 class="text-2xl font-black text-rose-500">❌ Boleto No Encontrado</h1>
-                    <p class="text-slate-300 text-sm">El número de boleto escaneado no existe o no está registrado en el sistema oficial.</p>
-                </div>
-            </body>
-            </html>
-            """, 404
+        return "<h3>Boleto no encontrado</h3>", 404
 
     sorteo = next((s for s in sorteos_db if s["id"] == boleto["sorteo_id"]), {"titulo": "Sorteo General", "precio": 10000})
     estado_color = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" if boleto["estado"] == "Aprobado" else "text-amber-400 bg-amber-500/10 border-amber-500/30"
@@ -535,17 +508,12 @@ def validar_boleto_qr(boleto_id):
     return f"""
         <!DOCTYPE html>
         <html lang="es">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Validación de Boleto #{str(boleto['id']).zfill(5)}</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-        </head>
+        <head><meta charset="UTF-8"><title>Validación de Boleto</title><script src="https://cdn.tailwindcss.com"></script></head>
         <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4 font-sans">
             <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 max-w-md w-full space-y-6">
                 <div class="text-center space-y-1 border-b border-slate-700 pb-4">
                     <h1 class="text-xl font-black text-amber-400">VIFRAN GROUP S.A.</h1>
-                    <p class="text-xs text-slate-400 uppercase tracking-widest">Certificado Oficial de Participación</p>
+                    <p class="text-xs text-slate-400 uppercase tracking-widest">Certificado Oficial</p>
                 </div>
                 <div class="space-y-3 text-sm">
                     <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-center">
@@ -554,11 +522,6 @@ def validar_boleto_qr(boleto_id):
                     </div>
                     <div><p class="text-xs text-slate-400">Sorteo:</p><p class="font-bold text-white">{sorteo['titulo']}</p></div>
                     <div><p class="text-xs text-slate-400">Comprador:</p><p class="font-bold text-white">{boleto['nombre']}</p></div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div><p class="text-xs text-slate-400">Cédula / RUC:</p><p class="font-bold text-slate-200">{boleto['cedula']}</p></div>
-                        <div><p class="text-xs text-slate-400">Teléfono:</p><p class="font-bold text-slate-200">{boleto['telefono']}</p></div>
-                    </div>
-                    <div><p class="text-xs text-slate-400">Valor del Ticket:</p><p class="font-bold text-slate-200">Gs. {sorteo['precio']:,}</p></div>
                 </div>
                 <div class="text-center pt-2">
                     <span class="inline-block px-4 py-1.5 rounded-xl text-xs font-bold border {estado_color}">Estado: {boleto['estado']}</span>
@@ -566,27 +529,40 @@ def validar_boleto_qr(boleto_id):
             </div>
         </body>
         </html>
-        """
+    """
+
 
 # ==========================================
-# API DE ADMINISTRACIÓN
+# API DE ADMINISTRACIÓN (INCLUYENDO DIFUSIÓN)
 # ==========================================
 def verificar_admin(data):
-    if data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password"): return True
+    if data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password"): 
+        return True
     return False
 
 @app.route("/api/admin/datos", methods=["POST"])
 def admin_datos():
     if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    return jsonify({"sorteos": sorteos_db, "boletos": boletos_db})
+    return jsonify({
+        "sorteos": sorteos_db, 
+        "boletos": boletos_db,
+        "total_clientes": len(clientes_db)
+    })
 
 @app.route("/api/admin/crear-sorteo", methods=["POST"])
 def admin_crear_sorteo():
     data = request.json
     if not verificar_admin(data): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
     if not data.get("titulo"): return jsonify({"error": "El título es obligatorio"}), 400
+    
     nuevo_id = len(sorteos_db) + 1
-    nuevo_sorteo = {"id": nuevo_id, "titulo": data.get("titulo"), "precio": int(data.get("precio", 10000)), "limite_boletos": int(data.get("limite_boletos", 1000)), "estado": "Activo"}
+    nuevo_sorteo = {
+        "id": nuevo_id, 
+        "titulo": data.get("titulo"), 
+        "precio": int(data.get("precio", 10000)), 
+        "limite_boletos": int(data.get("limite_boletos", 1000)), 
+        "estado": "Activo"
+    }
     sorteos_db.append(nuevo_sorteo)
     contador_boletos_por_sorteo[nuevo_id] = 1
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
@@ -600,6 +576,32 @@ def admin_finalizar_sorteo(sorteo_id):
             return jsonify({"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."})
     return jsonify({"error": "Sorteo no encontrado"}), 404
 
+# 🚀 NUEVA RUTA: ENVIAR DIFUSIÓN A TODOS LOS CLIENTES GUARDADOS PARA NUEVOS SORTEOS
+@app.route("/api/admin/difundir-nuevo-sorteo", methods=["POST"])
+def difundir_nuevo_sorteo():
+    data = request.json
+    if not verificar_admin(data): 
+        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+    
+    sorteo_id = data.get("sorteo_id")
+    sorteo = next((s for s in sorteos_db if s["id"] == sorteo_id), None)
+    if not sorteo:
+        return jsonify({"error": "Sorteo no encontrado"}), 404
+
+    mensaje_difusion = (
+        f"🚨 *¡NUEVO SORTEO DISPONIBLE EN VIFRAN GROUP S.A.!* 🍀\n\n"
+        f"🏆 *Premio:* {sorteo['titulo']}\n"
+        f"💵 *Valor por boleto:* Gs. {sorteo['precio']:,}\n\n"
+        f"¡Hola! Como ya participaste con nosotros anteriormente, te avisamos antes que nadie. Escríbenos 'hola' para reservar tus números de esta nueva edición. ¡Muchísima suerte! ✨"
+    )
+
+    enviados = 0
+    for tel in clientes_db.keys():
+        enviar_mensaje_whatsapp(tel, mensaje_difusion)
+        enviados += 1
+
+    return jsonify({"mensaje": f"¡Difusión enviada con éxito a {enviados} clientes registrados!"}), 200
+
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
     if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
@@ -610,13 +612,11 @@ def admin_aprobar_lote(lote_id):
     for b in boletos_db:
         if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
             b["estado"] = "Aprobado"
-            b["impreso"] = False  # 🚀 CORRECCIÓN: Garantiza que pase a la cola de impresión
+            b["impreso"] = False  
             aprobados += 1
             sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
             
             caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
-            
-            # 🚀 LLAMADA A LA FUNCIÓN DE UPLOAD DIRECTO (CERO DESCARGAS EXTERNAS)
             enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
 
     if aprobados > 0: return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
@@ -637,6 +637,19 @@ def marcar_como_impreso(lote_id):
     for b in boletos_db:
         if b["lote_id"] == lote_id: b["impreso"] = True
     return jsonify({"status": "success"}), 200
+
+@app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
+def api_reimprimir(boleto_id):
+    data = request.json
+    if not verificar_admin(data): 
+        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+    
+    boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
+    if not boleto:
+        return jsonify({"error": "Boleto no encontrado"}), 404
+    
+    boleto["impreso"] = False
+    return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora con éxito."}), 200
 
 @app.route("/impresion")
 def vista_impresion_web():
