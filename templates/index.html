@@ -2,69 +2,146 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Vifran Group S.A. - Sorteos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vifran Group S.A. - Sorteos Oficiales</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
-    <div class="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-        <h1 class="text-xl font-bold text-amber-400 mb-4 text-center">🎟️ Sorteos Vifran Group S.A.</h1>
+<body class="bg-slate-900 text-white min-h-screen p-4 md:p-6 font-sans">
+    <div class="max-w-xl mx-auto space-y-6">
         
-        <form id="formCompra" class="space-y-4">
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Seleccionar Sorteo:</label>
-                <select id="selectSorteo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
-                    <option value="1">Gran Sorteo Camioneta 0km</option>
-                </select>
+        <!-- ENCABEZADO Y ACCESO ADMIN -->
+        <header class="flex justify-between items-center bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-xl">
+            <h1 class="text-lg font-black text-amber-400">🎟️ Vifran Group S.A.</h1>
+            <a href="/admin" class="bg-slate-700 hover:bg-slate-600 text-xs font-bold px-3 py-2 rounded-xl transition text-amber-300 border border-slate-600">
+                🔒 Admin
+            </a>
+        </header>
+
+        <!-- FORMULARIO DE COMPRA PRINCIPAL -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 space-y-4">
+            <h2 class="text-xl font-black text-amber-400 text-center">✨ Participa en el Sorteo</h2>
+            
+            <!-- FLYER DEL SORTEO -->
+            <div class="text-center">
+                <img id="imgFlyer" src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Flyer Sorteo" class="w-full h-48 object-cover rounded-xl border border-slate-700 shadow-md">
             </div>
 
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Nombre y Apellido:</label>
-                <input type="text" id="nombre" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Cédula de Identidad:</label>
-                <input type="text" id="cedula" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Teléfono (WhatsApp):</label>
-                <input type="text" id="telefono" placeholder="Ej: 595981047851" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Método de Pago:</label>
-                <select id="metodoPago" onchange="mostrarOpcionesPago()" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white">
-                    <option value="Transferencia Directa">Transferencia Bancaria / ueno / Eko</option>
-                    <option value="Cripto (USDT)">Binance Pay (USDT)</option>
-                </select>
-            </div>
-
-            <!-- Bloque Opción Binance Pay con Conversión Automática -->
-            <div id="infoCrypto" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
-                <p class="font-bold text-amber-400">🪙 Pago vía Binance Pay (USDT):</p>
-                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
-                    <p class="text-emerald-400 font-bold">Monto exacto a enviar: <span id="montoUSDT" class="text-white text-sm font-mono">6.50</span> USDT</p>
-                    <p class="text-slate-400">📧 Correo: <span class="text-white">patricia99franco@gmail.com</span></p>
-                    <p class="text-slate-400">🆔 Binance ID: <span class="text-white">40280723</span></p>
-                </div>
+            <form id="formCompra" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Ingresa el Nro. de Orden o ID de Transacción de Binance:</label>
-                    <input type="text" id="hashCrypto" placeholder="Ej: 8493029102" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Seleccionar Sorteo:</label>
+                    <select id="selectSorteo" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <!-- Se llena dinámicamente -->
+                    </select>
                 </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Nombre y Apellido:</label>
+                        <input type="text" id="nombre" required placeholder="Ej: Juan Pérez" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Cédula de Identidad (CI):</label>
+                        <input type="text" id="cedula" required placeholder="Ej: 1234567" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Teléfono (WhatsApp):</label>
+                        <input type="text" id="telefono" required placeholder="Ej: 595981047851" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Cantidad de Boletos:</label>
+                        <input type="number" id="cantidad" min="1" value="1" onchange="actualizarTotal()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Método de Pago:</label>
+                    <select id="metodoPago" onchange="mostrarOpcionesPago()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <option value="Transferencia Directa">Transferencia Bancaria / ueno / Eko</option>
+                        <option value="Cripto (USDT)">Binance Pay (USDT)</option>
+                    </select>
+                </div>
+
+                <!-- BLOQUE OPCIÓN BINANCE PAY CON CONVERSIÓN AUTOMÁTICA -->
+                <div id="infoCrypto" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
+                    <p class="font-bold text-amber-400">🪙 Pago vía Binance Pay (USDT):</p>
+                    <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
+                        <p class="text-emerald-400 font-bold">Monto exacto a enviar: <span id="montoUSDT" class="text-white text-sm font-mono">0.00</span> USDT</p>
+                        <p class="text-slate-400">📧 Correo: <span class="text-white">patricia99franco@gmail.com</span></p>
+                        <p class="text-slate-400">🆔 Binance ID: <span class="text-white">40280723</span></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Ingresa el Nro. de Orden o ID de Transacción de Binance:</label>
+                        <input type="text" id="hashCrypto" placeholder="Ej: 8493029102" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white">
+                    </div>
+                </div>
+
+                <!-- TOTAL A PAGAR -->
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-center flex justify-between items-center">
+                    <span class="text-xs text-slate-400 uppercase font-semibold">Total a Pagar:</span>
+                    <span id="totalPagarGs" class="text-lg font-black text-emerald-400">Gs. 10.000</span>
+                </div>
+
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-xl transition shadow-lg">
+                    Confirmar Compra / Reservar Boletos
+                </button>
+            </form>
+
+            <div id="resultadoCompra" class="mt-4 text-center text-sm font-semibold"></div>
+        </div>
+
+        <!-- SECCIÓN DE CONSULTA DE BOLETOS -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 space-y-4">
+            <h2 class="text-lg font-bold text-amber-400">🔍 Consultar mis Boletos</h2>
+            <div class="flex gap-2">
+                <input type="text" id="terminoConsulta" placeholder="Ingresa tu Cédula o Teléfono" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button onclick="consultarBoletos()" class="bg-slate-700 hover:bg-slate-600 font-bold px-5 py-3 rounded-xl transition text-sm text-amber-300 border border-slate-600">Buscar</button>
             </div>
+            <div id="resultadoConsulta" class="space-y-2 mt-4 text-sm"></div>
+        </div>
 
-            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl transition duration-200">
-                Comprar Boletos
-            </button>
-        </form>
-
-        <div id="resultadoCompra" class="mt-4 text-center text-sm font-semibold"></div>
     </div>
 
     <script>
         const TASA_USDT_GS = 7800; 
-        const PRECIO_BOLETO_GS = 50000;
+        let sorteosDisponibles = [];
+
+        async function cargarSorteos() {
+            try {
+                const res = await fetch('/api/sorteos');
+                const data = await res.json();
+                sorteosDisponibles = data.sorteos;
+                const select = document.getElementById('selectSorteo');
+                select.innerHTML = '';
+                
+                sorteosDisponibles.forEach(s => {
+                    select.innerHTML += `<option value="${s.id}" data-precio="${s.precio}">${s.titulo} (Gs. ${s.precio.toLocaleString()})</option>`;
+                });
+                actualizarTotal();
+            } catch (e) {
+                console.error("Error cargando sorteos:", e);
+            }
+        }
+
+        function actualizarTotal() {
+            const select = document.getElementById('selectSorteo');
+            const selectedOption = select.options[select.selectedIndex];
+            if (!selectedOption) return;
+
+            const precio = parseInt(selectedOption.getAttribute('data-precio') || 10000);
+            const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+            const totalGs = precio * cantidad;
+
+            document.getElementById('totalPagarGs').innerText = `Gs. ${totalGs.toLocaleString()}`;
+
+            const metodo = document.getElementById('metodoPago').value;
+            if (metodo.includes('Cripto')) {
+                let totalUSDT = (totalGs / TASA_USDT_GS).toFixed(2);
+                document.getElementById('montoUSDT').innerText = totalUSDT;
+            }
+        }
 
         function mostrarOpcionesPago() {
             const metodo = document.getElementById('metodoPago').value;
@@ -72,12 +149,13 @@
             
             if (metodo.includes('Cripto')) {
                 infoCrypto.classList.remove('hidden');
-                let totalUSDT = (PRECIO_BOLETO_GS / TASA_USDT_GS).toFixed(2);
-                document.getElementById('montoUSDT').innerText = totalUSDT;
+                actualizarTotal();
             } else {
                 infoCrypto.classList.add('hidden');
             }
         }
+
+        document.getElementById('selectSorteo').addEventListener('change', actualizarTotal);
 
         document.getElementById('formCompra').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -94,6 +172,7 @@
                     nombre: document.getElementById('nombre').value,
                     cedula: document.getElementById('cedula').value,
                     telefono: document.getElementById('telefono').value,
+                    cantidad: parseInt(document.getElementById('cantidad').value),
                     metodo_pago: metodo,
                     detalle_pago: detallePagoFinal
                 })
@@ -102,14 +181,49 @@
             const resDiv = document.getElementById('resultadoCompra');
             if(res.ok) {
                 resDiv.className = "mt-4 text-center text-sm font-semibold text-emerald-400";
-                resDiv.innerText = `${data.mensaje} Número asignado temporalmente: #${data.boleto.id}`;
+                resDiv.innerText = `${data.mensaje} Números asignados: ${data.rango}`;
                 document.getElementById('formCompra').reset();
+                actualizarTotal();
                 mostrarOpcionesPago();
             } else {
                 resDiv.className = "mt-4 text-center text-sm font-semibold text-rose-400";
                 resDiv.innerText = data.error;
             }
         });
+
+        async function consultarBoletos() {
+            const termino = document.getElementById('terminoConsulta').value.trim();
+            const resDiv = document.getElementById('resultadoConsulta');
+            if(!termino) {
+                resDiv.innerHTML = `<p class="text-rose-400 text-xs">Ingresa una cédula o teléfono válido.</p>`;
+                return;
+            }
+
+            const res = await fetch('/api/consultar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ termino })
+            });
+            const data = await res.json();
+            resDiv.innerHTML = '';
+
+            if(res.ok && data.encontrado) {
+                data.boletos.forEach(b => {
+                    resDiv.innerHTML += `
+                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center text-xs">
+                            <div>
+                                <p class="font-bold text-amber-400">Boleto #${String(b.id).padStart(5, '0')} (${b.sorteo_titulo})</p>
+                                <p class="text-slate-400">Cliente: ${b.nombre}</p>
+                            </div>
+                            <span class="px-2 py-1 rounded font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${b.estado}</span>
+                        </div>`;
+                });
+            } else {
+                resDiv.innerHTML = `<p class="text-slate-400 text-xs text-center">No se encontraron boletos con ese número.</p>`;
+            }
+        }
+
+        cargarSorteos();
     </script>
 </body>
 </html>
