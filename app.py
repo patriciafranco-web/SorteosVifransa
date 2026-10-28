@@ -9,7 +9,9 @@ app = Flask(__name__)
 # CONFIGURACIÓN DE GREEN API (WHATSAPP)
 # ==========================================
 ID_INSTANCE = "710722782905"
-API_TOKEN_INSTANCE = "TU_TOKEN_DE_GREEN_API"  # Reemplaza con tu token de Green API
+API_TOKEN_INSTANCE = (
+    "085f2d211be547b9a9377b0021c03faf845beb16436644748b"
+)
 
 
 def enviar_mensaje_whatsapp(telefono, texto):
@@ -70,42 +72,53 @@ def admin_panel():
 
 
 # ==========================================
-# WEBHOOK DEL BOT DE WHATSAPP (GREEN API)
+# WEBHOOK UNIVERSAL DEL BOT (GREEN API)
 # ==========================================
 @app.route("/api/webhook/whatsapp", methods=["POST"])
 def webhook_whatsapp():
   datos = request.json
-
   if not datos:
     return jsonify({"status": "ignored"}), 200
 
-  # Validamos si es un mensaje entrante de Green API
-  if (
-      "typeWebhook" in datos
-      and datos["typeWebhook"] == "incomingMessageReceived"
-  ):
+  try:
+    # Extracción flexible de datos para capturar cualquier mensaje entrante
     senderData = datos.get("senderData", {})
     messageData = datos.get("messageData", {})
 
     chat_id = senderData.get("chatId", "")
-    telefono = chat_id.split("@")[0] if "@" in chat_id else chat_id
+    if not chat_id and "instanceData" in datos:
+      # Formato alternativo común en webhooks
+      chat_id = datos.get("chatData", {}).get("chatId", "")
 
-    tipo_mensaje = messageData.get("typeMessage", "")
+    if not chat_id and "chatId" in datos:
+      chat_id = datos.get("chatId", "")
+
+    telefono = chat_id.split("@")[0] if "@" in chat_id else str(chat_id)
+
+    # Extraer texto del mensaje de forma global
     mensaje = ""
-
-    if tipo_mensaje == "textMessage":
-      mensaje = messageData.get("textMessageData", {}).get("textMessage", "")
-    elif tipo_mensaje == "extendedTextMessage":
+    if "textMessageData" in messageData:
+      mensaje = messageData["textMessageData"].get("textMessage", "")
+    elif "extendedTextMessageData" in messageData:
+      mensaje = messageData["extendedTextMessageData"].get("text", "")
+    elif "messageData" in datos and "textMessage" in datos["messageData"]:
+      mensaje = datos["messageData"]["textMessage"]
+    else:
+      # Intento genérico de buscar texto en el JSON recibido
       mensaje = (
-          messageData.get("extendedTextMessageData", {})
-          .get("text", "")
-          .strip()
+          datos.get("messageData", {})
+          .get("textMessageData", {})
+          .get("textMessage", "")
       )
 
-    if not telefono or not mensaje:
+    # Si por alguna razón no extrajo texto pero llegó un POST, usamos un fallback para testear
+    if not telefono:
       return jsonify({"status": "ok"}), 200
 
-    mensaje_lower = mensaje.lower()
+    if not mensaje:
+      mensaje = "hola"  # Fuerza el inicio si entra cualquier evento de chat
+
+    mensaje_lower = mensaje.lower().strip()
 
     if telefono not in SESIONES_WHATSAPP:
       SESIONES_WHATSAPP[telefono] = {"paso": "INICIO", "datos": {}}
@@ -123,10 +136,11 @@ def webhook_whatsapp():
       )
 
       caption = (
-          f"¡Hola! Bienvenido a *PRO CAR GROUP* 🚗\n\n🏆 *Sorteo:* "
-          f"{sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor del"
-          f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
-          " reservar hoy?\n*(Responde únicamente con el número, ej: '2')*"
+          f"¡Hola! Bienvenido al sistema de Sorteos 🚗\n\n🏆 *Sorteo:*"
+          f" {sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor"
+          f" del ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te"
+          " gustaría reservar hoy?\n*(Responde únicamente con el número, ej:"
+          " '2')*"
       )
 
       enviar_imagen_whatsapp(telefono, url_flyer, caption)
@@ -200,7 +214,7 @@ def webhook_whatsapp():
             "cedula": cedula,
             "cantidad_lote": len(numeros),
             "estado": "Aprobado",
-            "impreso": False,  # Habilita la impresión automática en la oficina
+            "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
 
@@ -217,6 +231,9 @@ def webhook_whatsapp():
         enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
 
       sesion["paso"] = "INICIO"
+
+  except Exception as e:
+    print(f"Error procesando webhook: {e}")
 
   return jsonify({"status": "ok"}), 200
 
