@@ -29,7 +29,7 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
   payload = {
       "chatId": f"{telefono}@c.us",
       "urlFile": url_imagen,
-      "fileName": "flyer_sorteo.png",
+      "fileName": "flyer_sorteo.jpg",
       "caption": caption,
   }
   try:
@@ -48,7 +48,7 @@ sorteos_db = [{
     "precio": 10000,
     "limite_boletos": 1000,
     "estado": "Activo",
-    "imagen_nombre": "flyer_sorteo.png",
+    "imagen_nombre": "flyer_sorteo.jpg",
 }]
 
 boletos_db = []
@@ -116,13 +116,13 @@ def webhook_whatsapp():
     sesion = SESIONES_WHATSAPP[telefono]
     paso = sesion["paso"]
 
-    # PASO 1: Saludo inicial y envío del flyer oficial
+    # PASO 1: Saludo inicial y envío del flyer oficial (.jpg)
     if "hola" in mensaje_lower or paso == "INICIO":
       sesion["paso"] = "ESPERANDO_CANTIDAD"
       sorteo = sorteos_db[0]
 
       url_flyer = request.host_url.rstrip("/") + url_for(
-          "static", filename="flyer_sorteo.png"
+          "static", filename="flyer_sorteo.jpg"
       )
 
       caption = (
