@@ -3,263 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sorteos Vifran Group S.A. - Plataforma Oficial</title>
+    <title>Admin - Sorteos Vifran Group S.A.</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen p-4 md:p-6">
-    <div class="max-w-5xl mx-auto space-y-6">
-        <header class="text-center my-4 space-y-2">
-            <h1 class="text-3xl font-extrabold text-amber-400">Sorteos Vifran Group S.A.</h1>
-            <p class="text-slate-300 text-sm italic">"Tu suerte, nuestro compromiso"</p>
+<body class="bg-slate-950 text-slate-100 p-4 md:p-6 font-sans min-h-screen">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+            <h1 class="text-2xl font-black text-amber-400">🔒 Panel de Control - Vifran Group S.A.</h1>
+            <button onclick="location.reload()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-xl text-slate-300 transition">Actualizar Datos</button>
         </header>
+        
+        <!-- Login Box -->
+        <div id="loginBox" class="bg-slate-900 p-6 rounded-2xl border border-slate-800 max-w-md shadow-xl mx-auto mt-10">
+            <h2 class="text-lg font-bold text-amber-300 mb-4">Iniciar Sesión de Administrador</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Usuario</label>
+                    <input type="text" id="userInput" placeholder="Ej: patriciafranco" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" id="passInput" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <button onclick="cargarPanelAdmin()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition">Ingresar al Sistema</button>
+            </div>
+        </div>
 
-        <!-- Contenedor Principal: Flyer al lado y Formulario -->
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+        <!-- Panel de Administración (Oculto al inicio) -->
+        <div id="adminPanel" class="hidden space-y-6">
             
-            <!-- Columna Izquierda: Flyer Oficial -->
-            <div class="md:col-span-5 bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-700 text-center space-y-3">
-                <h2 class="text-lg font-bold text-amber-300">📱 Sorteo de 4 iPhones</h2>
-                <div class="rounded-lg overflow-hidden shadow-md border border-slate-700 bg-slate-900">
-                    <img src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Sorteo de 4 iPhones - Vifran Group S.A." class="w-full h-auto object-cover">
+            <!-- Crear Nuevo Sorteo -->
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
+                <h2 class="text-lg font-bold text-amber-300 mb-4">➕ Crear Nuevo Sorteo / Rifa</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="nuevoTitulo" placeholder="Título (Ej: Sorteo Moto 125cc)" class="bg-slate-950 border border-slate-700 rounded-xl p-3 text-white">
+                    <input type="number" id="nuevoPrecio" placeholder="Precio por boleto (Gs.)" class="bg-slate-950 border border-slate-700 rounded-xl p-3 text-white">
+                    <button onclick="crearSorteo()" class="bg-emerald-600 hover:bg-emerald-500 font-bold p-3 rounded-xl text-white transition">Crear Sorteo</button>
                 </div>
-                <p class="text-xs text-amber-300 font-semibold">🎁 ¡4 Premios / 4 Ganadores! (Un iPhone para cada ganador)</p>
             </div>
 
-            <!-- Columna Derecha: Formulario dinámico -->
-            <div class="md:col-span-7 bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-                
-                <!-- PASO 1: Formulario de Registro Inicial -->
-                <div id="seccionFormulario">
-                    <h2 class="text-xl font-bold mb-1 text-amber-300">🎟️ Comprar Tu Boleto</h2>
-                    <p class="text-xs text-amber-400/80 mb-4 font-semibold">Costo por boleto: Gs. <span id="textoPrecioUnitario">10.000</span></p>
-                    
-                    <form id="formCompra" class="space-y-4">
-                        <input type="hidden" id="sorteoId" value="1">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Nombre Completo</label>
-                            <input type="text" id="nombre" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Cédula de Identidad</label>
-                            <input type="text" id="cedula" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Teléfono / WhatsApp</label>
-                            <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Cantidad de Boletos</label>
-                            <input type="number" id="cantidad" min="1" value="1" oninput="calcularTotal()" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white font-bold text-amber-400">
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded border border-slate-700 text-center">
-                            <p class="text-xs text-slate-400">TOTAL A PAGAR:</p>
-                            <p id="totalPagar" class="text-xl font-extrabold text-amber-400">Gs. 10.000</p>
-                        </div>
-                        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 font-bold py-3 rounded text-slate-950 transition">Reservar Boletos y Ver Datos de Pago</button>
-                    </form>
+            <!-- Listado de Sorteos Activos -->
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
+                <h2 class="text-lg font-bold text-amber-300 mb-4">📋 Sorteos Registrados</h2>
+                <div id="listaSorteosAdmin" class="space-y-3"></div>
+            </div>
+
+            <!-- Listado de Boletos por Aprobar -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+                <div class="p-4 bg-slate-850 border-b border-slate-800">
+                    <h2 class="text-lg font-bold text-amber-300">🎟️ Validación de Comprobantes y Boletos Pendientes</h2>
                 </div>
-
-                <!-- PASO 2: Confirmación, Datos Bancarios de ueno Empresas y Subida de Comprobante (Oculto al inicio) -->
-                <div id="seccionComprobante" class="hidden space-y-4">
-                    <div class="bg-emerald-500/10 border border-emerald-500/40 p-4 rounded-xl text-center space-y-2">
-                        <h3 class="text-lg font-bold text-emerald-400">¡Boletos Reservados con Éxito! 🎉</h3>
-                        <p class="text-xs text-slate-300">Tus números asignados temporalmente son:</p>
-                        <p id="labelRangoNumeros" class="text-2xl font-black text-amber-400">#00</p>
-                    </div>
-
-                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-sm space-y-2">
-                        <p class="font-bold text-amber-400">🏦 Realiza tu transferencia por ueno Empresas:</p>
-                        <p class="text-slate-300"><b>Titular:</b> Patricia Franco (Vifran Group S.A.)</p>
-                        <p class="text-slate-300"><b>RUC:</b> 4775796-5</p>
-                        <p class="text-slate-300"><b>Banco ueno Empresas:</b> Cuenta Corriente</p>
-                        <p class="text-emerald-400 font-bold mt-1">Monto Exacto a Transferir: <span id="montoFinalTransferencia" class="text-white text-base">Gs. 10.000</span></p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block text-sm font-medium mb-1">Adjunta la Foto de tu Comprobante de Pago</label>
-                        <input type="file" id="fotoComprobante" accept="image/*" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-600">
-                    </div>
-
-                    <button onclick="enviarComprobante()" class="w-full bg-emerald-600 hover:bg-emerald-700 font-bold py-3 rounded text-white transition">Enviar Comprobante para Validación Final</button>
-                    
-                    <button onclick="reiniciarFormulario()" class="w-full bg-slate-700 hover:bg-slate-600 text-xs font-semibold py-2 rounded text-slate-300 transition">← Volver / Modificar datos</button>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-850 text-slate-400 border-b border-slate-800 uppercase text-xs tracking-wider">
+                                <th class="p-4">ID / Lote</th>
+                                <th class="p-4">Sorteo</th>
+                                <th class="p-4">Comprador</th>
+                                <th class="p-4">Cédula / Tel</th>
+                                <th class="p-4">Comprobante</th>
+                                <th class="p-4">Estado</th>
+                                <th class="p-4">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaBoletos"></tbody>
+                    </table>
                 </div>
-
-                <div id="resultadoCompra" class="mt-4 text-center font-semibold"></div>
             </div>
         </div>
-
-        <!-- Módulo de Consulta Pública -->
-        <div class="max-w-xl mx-auto bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-            <h2 class="text-xl font-bold mb-4 text-amber-300">🔍 Consultar Mis Boletos</h2>
-            <div class="flex gap-2">
-                <input type="text" id="terminoConsulta" placeholder="Ingresa tu Cédula o Teléfono" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
-                <button onclick="consultarBoletos()" class="bg-indigo-600 hover:bg-indigo-700 font-bold px-4 rounded text-white transition">Buscar</button>
-            </div>
-            <div id="resultadoConsulta" class="mt-4 space-y-2"></div>
-        </div>
-
-        <!-- Acceso Administrativo Discreto -->
-        <footer class="text-center pt-4 pb-8 border-t border-slate-800">
-            <a href="/admin" class="text-xs text-slate-500 hover:text-amber-400 transition">🔒 Acceso Administrativo</a>
-        </footer>
     </div>
 
     <script>
-        let precioBase = 10000;
-        let datosReservaTemporal = null;
+        let adminUser = "";
+        let adminPassword = "";
 
-        async function cargarSorteoActivo() {
-            const res = await fetch('/api/sorteos');
-            const data = await res.json();
-            if(data.sorteos && data.sorteos.length > 0) {
-                const sorteo = data.sorteos[0];
-                document.getElementById('sorteoId').value = sorteo.id;
-                precioBase = sorteo.precio;
-                document.getElementById('textoPrecioUnitario').innerText = precioBase.toLocaleString();
-                calcularTotal();
-            }
-        }
-
-        function calcularTotal() {
-            const cant = parseInt(document.getElementById('cantidad').value) || 1;
-            const total = cant * precioBase;
-            document.getElementById('totalPagar').innerText = `Gs. ${total.toLocaleString()}`;
-        }
-
-        function convertirImagenABase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-        }
-
-        // PASO 1: Al enviar el formulario, reservamos los boletos en el servidor sin pedir foto todavía
-        document.getElementById('formCompra').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const resDiv = document.getElementById('resultadoCompra');
-            resDiv.className = "mt-4 text-center font-semibold text-amber-400";
-            resDiv.innerText = "Reservando boletos...";
-
-            const cantidad = parseInt(document.getElementById('cantidad').value);
-            const totalPagar = cantidad * precioBase;
-
-            const res = await fetch('/api/comprar', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    sorteo_id: parseInt(document.getElementById('sorteoId').value),
-                    nombre: document.getElementById('nombre').value,
-                    cedula: document.getElementById('cedula').value,
-                    telefono: document.getElementById('telefono').value,
-                    cantidad: cantidad,
-                    imagen_comprobante: "" // Vacío por ahora
-                })
-            });
-            const data = await res.json();
+        async function cargarPanelAdmin() {
+            adminUser = document.getElementById('userInput').value.trim();
+            adminPassword = document.getElementById('passInput').value.trim();
             
-            if(res.ok) {
-                resDiv.innerText = "";
-                datosReservaTemporal = {
-                    nombre: document.getElementById('nombre').value,
-                    cedula: document.getElementById('cedula').value,
-                    telefono: document.getElementById('telefono').value,
-                    cantidad: cantidad
-                };
-                
-                // Mostrar Paso 2
-                document.getElementById('labelRangoNumeros').innerText = data.rango;
-                document.getElementById('montoFinalTransferencia').innerText = `Gs. ${totalPagar.toLocaleString()}`;
-                document.getElementById('seccionFormulario').classList.add('hidden');
-                document.getElementById('seccionComprobante').classList.remove('hidden');
-            } else {
-                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
-                resDiv.innerText = data.error;
-            }
-        });
-
-        // PASO 2: Enviar el comprobante para actualizar el registro existente
-        async function enviarComprobante() {
-            const resDiv = document.getElementById('resultadoCompra');
-            let imagenBase64 = "";
-            const fileInput = document.getElementById('fotoComprobante');
-            
-            if(fileInput.files.length > 0) {
-                try {
-                    imagenBase64 = await convertirImagenABase64(fileInput.files[0]);
-                } catch(err) { console.error("Error al leer imagen", err); }
-            }
-
-            if(!imagenBase64) {
-                alert("Por favor adjunta la foto de tu comprobante de transferencia.");
-                return;
-            }
-
-            resDiv.className = "mt-4 text-center font-semibold text-amber-400";
-            resDiv.innerText = "Enviando comprobante...";
-
-            const res = await fetch('/api/comprar', {
+            const res = await fetch('/api/admin/datos', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    sorteo_id: parseInt(document.getElementById('sorteoId').value),
-                    nombre: datosReservaTemporal.nombre,
-                    cedula: datosReservaTemporal.cedula,
-                    telefono: datosReservaTemporal.telefono,
-                    cantidad: datosReservaTemporal.cantidad,
-                    imagen_comprobante: imagenBase64
-                })
+                body: JSON.stringify({ usuario: adminUser, password: adminPassword })
             });
-            const data = await res.json();
-
             if(res.ok) {
-                resDiv.className = "mt-4 text-center font-semibold text-emerald-400";
-                resDiv.innerText = "¡Comprobante enviado con éxito! Quedas a la espera de aprobación del administrador.";
-                setTimeout(() => {
-                    reiniciarFormulario();
-                }, 4000);
+                document.getElementById('loginBox').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                const data = await res.json();
+                renderizarTodo(data);
             } else {
-                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
-                resDiv.innerText = data.error;
+                alert('Usuario o contraseña incorrectos');
             }
         }
 
-        function reiniciarFormulario() {
-            document.getElementById('formCompra').reset();
-            document.getElementById('resultadoCompra').innerText = "";
-            document.getElementById('seccionComprobante').classList.add('hidden');
-            document.getElementById('seccionFormulario').classList.remove('hidden');
-            calcularTotal();
-        }
-
-        async function consultarBoletos() {
-            const termino = document.getElementById('terminoConsulta').value;
-            const res = await fetch('/api/consultar', {
+        async function crearSorteo() {
+            const titulo = document.getElementById('nuevoTitulo').value;
+            const precio = document.getElementById('nuevoPrecio').value;
+            const res = await fetch('/api/admin/crear-sorteo', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ termino })
+                body: JSON.stringify({ usuario: adminUser, password: adminPassword, titulo, precio: Number(precio) })
             });
             const data = await res.json();
-            const container = document.getElementById('resultadoConsulta');
-            container.innerHTML = '';
-            if(data.encontrado) {
-                data.boletos.forEach(b => {
-                    container.innerHTML += `<div class="bg-slate-900 p-3 rounded border border-slate-700 flex justify-between items-center">
+            alert(data.mensaje);
+            document.getElementById('nuevoTitulo').value = '';
+            document.getElementById('nuevoPrecio').value = '';
+            cargarPanelAdmin();
+        }
+
+        async function finalizarSorteo(sorteoId) {
+            if(!confirm("¿Estás seguro de finalizar este sorteo?")) return;
+            const res = await fetch(`/api/admin/finalizar-sorteo/${sorteoId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: adminUser, password: adminPassword })
+            });
+            const data = await res.json();
+            alert(data.mensaje);
+            cargarPanelAdmin();
+        }
+
+        async function aprobarBoleto(id, sorteoId) {
+            const res = await fetch(`/api/admin/aprobar/${id}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: adminUser, password: adminPassword, sorteo_id: sorteoId })
+            });
+            const data = await res.json();
+            alert(data.mensaje);
+            cargarPanelAdmin();
+        }
+
+        function renderizarTodo(data) {
+            const listaSorteos = document.getElementById('listaSorteosAdmin');
+            listaSorteos.innerHTML = '';
+            data.sorteos.forEach(s => {
+                listaSorteos.innerHTML += `
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center text-sm">
                         <div>
-                            <p class="font-bold text-amber-400">Boleto #${b.id} (${b.sorteo_titulo || 'Sorteo'})</p>
-                            <p class="text-xs text-slate-400">${b.nombre} - Tel: ${b.telefono}</p>
+                            <p class="font-bold text-amber-400">${s.titulo} - Gs. ${s.precio.toLocaleString()}</p>
+                            <p class="text-xs text-slate-400">Estado: <span class="${s.estado === 'Activo' ? 'text-emerald-400 font-bold' : 'text-rose-400'}">${s.estado}</span></p>
                         </div>
-                        <span class="px-2 py-1 rounded text-xs font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500' : 'bg-amber-500/20 text-amber-400 border border-amber-500'}">${b.estado}</span>
+                        ${s.estado === 'Activo' ? `<button onclick="finalizarSorteo(${s.id})" class="bg-rose-600 hover:bg-rose-500 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition">Finalizar Sorteo</button>` : ''}
                     </div>`;
-                });
-            } else {
-                container.innerHTML = `<p class="text-slate-400 text-center text-sm">${data.mensaje}</p>`;
-            }
-        }
+            });
 
-        cargarSorteoActivo();
+            const tbody = document.getElementById('tablaBoletos');
+            tbody.innerHTML = '';
+            
+            const sorteosMap = {};
+            data.sorteos.forEach(s => sorteosMap[s.id] = s.titulo);
+
+            data.boletos.forEach(b => {
+                const tituloSorteo = sorteosMap[b.sorteo_id] || "Sorteo General";
+                
+                // Manejar comprobante (puede ser URL de Green API o base64 de la web)
+                let comprobanteHtml = '<span class="text-rose-400 text-xs">Sin comprobante</span>';
+                if(b.imagen_comprobante) {
+                    if(b.imagen_comprobante.startsWith('http')) {
+                        comprobanteHtml = `<a href="${b.imagen_comprobante}" target="_blank" class="text-amber-400 font-bold underline hover:text-amber-300 text-xs">🔍 Ver Comprobante (WhatsApp)</a>`;
+                    } else {
+                        comprobanteHtml = `<a href="${b.imagen_comprobante}" target="_blank" class="text-emerald-400 font-bold underline hover:text-emerald-300 text-xs">🔍 Ver Comprobante (Web)</a>`;
+                    }
+                }
+
+                tbody.innerHTML += `<tr class="border-b border-slate-800 hover:bg-slate-850/50">
+                    <td class="p-4 font-bold text-amber-400">#${b.id} <span class="text-xs text-slate-500 font-normal">(Lote ${b.lote_id})</span></td>
+                    <td class="p-4 text-slate-300">${tituloSorteo}</td>
+                    <td class="p-4 font-medium">${b.nombre}</td>
+                    <td class="p-4 text-slate-400 text-xs">${b.cedula}<br><span class="text-slate-500">${b.telefono}</span></td>
+                    <td class="p-4">${comprobanteHtml}</td>
+                    <td class="p-4"><span class="px-2.5 py-1 rounded-lg text-xs font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">${b.estado}</span></td>
+                    <td class="p-4">
+                        ${b.estado === 'Pendiente' ? `<button onclick="aprobarBoleto(${b.id}, ${b.sorteo_id})" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition">Aprobar</button>` : '<span class="text-xs text-slate-500">Aprobado</span>'}
+                    </td>
+                </tr>`;
+            });
+        }
     </script>
 </body>
 </html>
