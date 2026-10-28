@@ -610,6 +610,7 @@ def admin_aprobar_lote(lote_id):
     for b in boletos_db:
         if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
             b["estado"] = "Aprobado"
+            b["impreso"] = False  # 🚀 CORRECCIÓN: Garantiza que pase a la cola de impresión
             aprobados += 1
             sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
             
