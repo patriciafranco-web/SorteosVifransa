@@ -142,7 +142,6 @@ def cargar_datos_disco():
         except Exception as e:
             print(f"❌ Error leyendo datos del disco: {e}")
 
-# Cargar datos al iniciar la aplicación
 cargar_datos_disco()
 
 
@@ -646,6 +645,28 @@ def difundir_nuevo_sorteo():
         enviados += 1
 
     return jsonify({"mensaje": f"¡Difusión enviada con éxito a {enviados} clientes registrados!"}), 200
+
+# 🚀 NUEVA RUTA: LIMPIAR PRUEBAS DEL SISTEMA
+@app.route("/api/admin/limpiar-pruebas", methods=["POST"])
+def limpiar_pruebas():
+    data = request.json
+    if not verificar_admin(data): 
+        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+    
+    global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
+    boletos_db = []
+    contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
+    lote_contador = 1
+    numeros_liberados = {}
+    lotes_pendientes = {}
+    
+    if os.path.exists(ARCHIVO_DATOS):
+        try:
+            os.remove(ARCHIVO_DATOS)
+        except Exception as e:
+            print(f"❌ Error al borrar el archivo de datos: {e}")
+
+    return jsonify({"mensaje": "¡Sistema limpiado con éxito! Todas las pruebas fueron eliminadas y los contadores volvieron a cero."}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
