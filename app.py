@@ -16,7 +16,6 @@ ID_INSTANCE = "710722782905"
 API_TOKEN_INSTANCE = "085f2d211be547b9a9377b0021c03faf845beb16436644748b"
 
 def formatear_telefono(telefono):
-    """Limpia y formatea el número para WhatsApp a prueba de fallos (Ej: Paraguay 595...)"""
     tel_limpio = "".join(filter(str.isdigit, str(telefono)))
     if len(tel_limpio) == 10 and tel_limpio.startswith("0"):
         tel_limpio = "595" + tel_limpio[1:]
@@ -30,34 +29,14 @@ def enviar_mensaje_whatsapp(telefono, texto):
         url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
         payload = {"chatId": f"{tel_formateado}@c.us", "message": texto}
         try:
-            res = requests.post(url, json=payload)
-            print(f"📤 Respuesta sendMessage: {res.status_code} - {res.text}")
+            requests.post(url, json=payload)
         except Exception as e:
             print(f"❌ Error enviando mensaje Green API: {e}")
-    threading.Thread(target=tarea).start()
-
-def enviar_imagen_whatsapp(telefono, url_imagen, caption):
-    def tarea():
-        tel_formateado = formatear_telefono(telefono)
-        url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUrl/{API_TOKEN_INSTANCE}"
-        url_imagen_segura = url_imagen.replace("http://", "https://")
-        payload = {
-            "chatId": f"{tel_formateado}@c.us",
-            "urlFile": url_imagen_segura,
-            "fileName": "ticket_vifran.png",
-            "caption": caption,
-        }
-        try:
-            res = requests.post(url, json=payload)
-            print(f"📤 Respuesta sendFileByUrl: {res.status_code} - {res.text}")
-        except Exception as e:
-            print(f"❌ Error enviando imagen Green API: {e}")
     threading.Thread(target=tarea).start()
 
 def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
     def tarea():
         tel_formateado = formatear_telefono(telefono)
-        
         url_txt = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
         try:
             requests.post(url_txt, json={"chatId": f"{tel_formateado}@c.us", "message": "✅ *¡Pago verificado!* Generando tu boleto oficial con QR..."})
@@ -65,17 +44,14 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
             print(f"❌ Error enviando aviso previo: {e}")
         
         output = crear_imagen_boleto_memoria(boleto_id, host_url)
-        if not output:
-            print("❌ Error: No se pudo generar la imagen del ticket en memoria.")
-            return
+        if not output: return
         
         url_up = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUpload/{API_TOKEN_INSTANCE}"
         payload = {'chatId': f"{tel_formateado}@c.us", 'caption': caption}
         files = [('file', (f'ticket_{boleto_id}.png', output.getvalue(), 'image/png'))]
         
         try:
-            res = requests.post(url_up, data=payload, files=files)
-            print(f"📤 Respuesta sendFileByUpload (Ticket): {res.status_code} - {res.text}")
+            requests.post(url_up, data=payload, files=files)
         except Exception as e:
             print(f"❌ Error subiendo ticket directamente: {e}")
             
@@ -97,13 +73,11 @@ sorteos_db = [{
 }]
 
 boletos_db = []
-clientes_db = {}  # {telefono: {"nombre": ..., "cedula": ...}}
+clientes_db = {}
 contador_boletos_por_sorteo = {1: 1}
 lote_contador = 1
-
 lotes_pendientes = {}    
 numeros_liberados = {}  
-
 SESIONES_WHATSAPP = {}
 
 ADMIN_USERS = {
@@ -138,51 +112,13 @@ def cargar_datos_disco():
                 contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 1}).items()}
                 lote_contador = datos.get("lote_contador", 1)
                 numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
-                print("✅ Datos cargados exitosamente desde el disco.")
         except Exception as e:
             print(f"❌ Error leyendo datos del disco: {e}")
 
 cargar_datos_disco()
 
-
-# ==========================================
-# CRONJOB LIGERO (RECUPERACIÓN Y EXPIRACIÓN)
-# ==========================================
-def revisar_lotes_pendientes():
-    global boletos_db
-    while True:
-        time.sleep(60) 
-        ahora = time.time()
-        lotes_a_eliminar = []
-
-        for lote_id, info in list(lotes_pendientes.items()):
-            tiempo_transcurrido = ahora - info['tiempo_reserva']
-            
-            if tiempo_transcurrido >= 900 and not info['recordatorio_enviado']:
-                mensaje = "⏳ ¡Hola! Notamos que tus números siguen reservados pero aún no recibimos tu comprobante.\n\n¿Tuviste algún problema con la transferencia ueno? Si necesitas ayuda o más tiempo, ¡solo respóndenos este mensaje! 🍀"
-                enviar_mensaje_whatsapp(info['telefono'], mensaje)
-                lotes_pendientes[lote_id]['recordatorio_enviado'] = True
-            
-            if tiempo_transcurrido >= 7200:
-                mensaje = "❌ Tu reserva ha expirado por falta de pago y tus números han sido liberados para otros clientes.\n\nSi aún deseas participar, vuelve a enviar 'hola' para iniciar un nuevo proceso. ¡Te esperamos! ✨"
-                enviar_mensaje_whatsapp(info['telefono'], mensaje)
-                lotes_a_eliminar.append(lote_id)
-
-        if lotes_a_eliminar:
-            for lote_id in lotes_a_eliminar:
-                boletos_a_borrar = [b for b in boletos_db if b['lote_id'] == lote_id]
-                for b in boletos_a_borrar:
-                    s_id = b['sorteo_id']
-                    if s_id not in numeros_liberados:
-                        numeros_liberados[s_id] = []
-                    numeros_liberados[s_id].append(b['id'])
-                boletos_db = [b for b in boletos_db if b['lote_id'] != lote_id]
-                del lotes_pendientes[lote_id]
-            guardar_datos_disco()
-
-hilo_revision = threading.Thread(target=revisar_lotes_pendientes, daemon=True)
-hilo_revision.start()
-
+# Candado de seguridad para asignación concurrente limpia
+bloqueo_compra = threading.Lock()
 
 @app.route("/")
 def index():
@@ -192,19 +128,15 @@ def index():
 def admin_panel():
     return render_template("admin.html")
 
-
-# ==========================================
-# RUTAS DE COMPRA PÚBLICA (WEB Y CONSULTA)
-# ==========================================
 @app.route("/api/sorteos", methods=["GET"])
 def obtener_sorteos():
     activos = [s for s in sorteos_db if s["estado"] == "Activo"]
     return jsonify({"sorteos": activos})
 
 
-# Candado de seguridad para asignación concurrente limpia
-bloqueo_compra = threading.Lock()
-
+# ==========================================
+# PASO 1: RESERVA DE BOLETOS (SIN DUPLICAR)
+# ==========================================
 @app.route("/api/comprar", methods=["POST"])
 def comprar():
     global lote_contador
@@ -215,10 +147,8 @@ def comprar():
     telefono = data.get("telefono")
     cedula = data.get("cedula")
     cantidad = int(data.get("cantidad", 1))
-    
     metodo_pago = data.get("metodo_pago", "Transferencia Directa")
     detalle_pago = data.get("detalle_pago", "")
-    imagen_comprobante = data.get("imagen_comprobante", "")
 
     if not nombre or not telefono or not cedula or cantidad < 1:
         return jsonify({"error": "Todos los campos son obligatorios."}), 400
@@ -259,7 +189,7 @@ def comprar():
                 "telefono": telefono,
                 "cedula": cedula,
                 "cantidad_lote": cantidad,
-                "imagen_comprobante": imagen_comprobante,
+                "imagen_comprobante": "",
                 "metodo_pago": metodo_pago,
                 "detalle_pago": detalle_pago,
                 "estado": "Pendiente",
@@ -282,11 +212,38 @@ def comprar():
     )
 
     return jsonify({
-        "mensaje": f"¡Compra de {cantidad} boleto(s) registrada!",
+        "mensaje": f"¡Reserva de {cantidad} boleto(s) registrada con éxito!",
         "rango": rango_str,
-        "lote_id": current_lote,
-        "boleto": {"id": nuevos_boletos_ids[0]}
+        "lote_id": current_lote
     }), 200
+
+
+# ==========================================
+# PASO 2: SUBIR COMPROBANTE AL LOTE EXISTENTE
+# ==========================================
+@app.route("/api/subir-comprobante", methods=["POST"])
+def subir_comprobante():
+    data = request.json
+    lote_id = data.get("lote_id")
+    imagen_comprobante = data.get("imagen_comprobante", "")
+
+    if not lote_id or not imagen_comprobante:
+        return jsonify({"error": "Faltan datos del lote o la imagen."}), 400
+
+    with bloqueo_compra:
+        actualizados = 0
+        for b in boletos_db:
+            if b["lote_id"] == int(lote_id):
+                b["imagen_comprobante"] = imagen_comprobante
+                actualizados += 1
+
+        if actualizados > 0:
+            if int(lote_id) in lotes_pendientes:
+                del lotes_pendientes[int(lote_id)]
+            guardar_datos_disco()
+            return jsonify({"mensaje": "¡Comprobante adjuntado correctamente al lote!"}), 200
+        else:
+            return jsonify({"error": "Lote no encontrado."}), 404
 
 
 @app.route("/api/consultar", methods=["POST"])
@@ -294,7 +251,6 @@ def consultar():
     data = request.json
     termino = data.get("termino")
     resultados = [b for b in boletos_db if b["telefono"] == termino or b["cedula"] == termino]
-    
     if not resultados:
         return jsonify({"encontrado": False, "mensaje": "No se encontraron boletos."}), 404
 
@@ -484,8 +440,7 @@ def webhook_whatsapp():
 # ==========================================
 def crear_imagen_boleto_memoria(boleto_id, host_url):
     boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto:
-        return None
+    if not boleto: return None
 
     sorteo_titulo = "Sorteo de 4 iPhones"
     for s in sorteos_db:
@@ -539,15 +494,10 @@ def obtener_ticket_imagen(boleto_id):
     if not output: return "Boleto no encontrado", 404
     return send_file(output, mimetype="image/png")
 
-
-# ==========================================
-# RUTA PÚBLICA DE VALIDACIÓN DE QR
-# ==========================================
 @app.route("/validar/<int:boleto_id>")
 def validar_boleto_qr(boleto_id):
     boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto:
-        return "<h3>Boleto no encontrado</h3>", 404
+    if not boleto: return "<h3>Boleto no encontrado</h3>", 404
 
     sorteo = next((s for s in sorteos_db if s["id"] == boleto["sorteo_id"]), {"titulo": "Sorteo General", "precio": 10000})
     estado_color = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" if boleto["estado"] == "Aprobado" else "text-amber-400 bg-amber-500/10 border-amber-500/30"
@@ -557,22 +507,12 @@ def validar_boleto_qr(boleto_id):
         <html lang="es">
         <head><meta charset="UTF-8"><title>Validación de Boleto</title><script src="https://cdn.tailwindcss.com"></script></head>
         <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4 font-sans">
-            <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 max-w-md w-full space-y-6">
-                <div class="text-center space-y-1 border-b border-slate-700 pb-4">
-                    <h1 class="text-xl font-black text-amber-400">VIFRAN GROUP S.A.</h1>
-                    <p class="text-xs text-slate-400 uppercase tracking-widest">Certificado Oficial</p>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-center">
-                        <span class="text-xs text-slate-400 block">NÚMERO DE BOLETO</span>
-                        <span class="text-3xl font-black text-amber-400">#{str(boleto['id']).zfill(5)}</span>
-                    </div>
-                    <div><p class="text-xs text-slate-400">Sorteo:</p><p class="font-bold text-white">{sorteo['titulo']}</p></div>
-                    <div><p class="text-xs text-slate-400">Comprador:</p><p class="font-bold text-white">{boleto['nombre']}</p></div>
-                </div>
-                <div class="text-center pt-2">
-                    <span class="inline-block px-4 py-1.5 rounded-xl text-xs font-bold border {estado_color}">Estado: {boleto['estado']}</span>
-                </div>
+            <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 max-w-md w-full space-y-6 text-center">
+                <h1 class="text-xl font-black text-amber-400">VIFRAN GROUP S.A.</h1>
+                <span class="text-3xl font-black text-amber-400 block">#{str(boleto['id']).zfill(5)}</span>
+                <p class="text-sm font-bold">{sorteo['titulo']}</p>
+                <p class="text-xs text-slate-300">Cliente: {boleto['nombre']} (CI: {boleto['cedula']})</p>
+                <span class="inline-block px-4 py-1.5 rounded-xl text-xs font-bold border {estado_color}">Estado: {boleto['estado']}</span>
             </div>
         </body>
         </html>
@@ -583,30 +523,21 @@ def validar_boleto_qr(boleto_id):
 # API DE ADMINISTRACIÓN
 # ==========================================
 def verificar_admin(data):
-    if data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password"): 
-        return True
-    return False
+    return data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password")
 
 @app.route("/api/admin/datos", methods=["POST"])
 def admin_datos():
-    if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    return jsonify({
-        "sorteos": sorteos_db, 
-        "boletos": boletos_db,
-        "total_clientes": len(clientes_db)
-    })
+    if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
+    return jsonify({"sorteos": sorteos_db, "boletos": boletos_db, "total_clientes": len(clientes_db)})
 
 @app.route("/api/admin/crear-sorteo", methods=["POST"])
 def admin_crear_sorteo():
     data = request.json
-    if not verificar_admin(data): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    if not data.get("titulo"): return jsonify({"error": "El título es obligatorio"}), 400
-    
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     with bloqueo_compra:
         nuevo_id = len(sorteos_db) + 1
         nuevo_sorteo = {
-            "id": nuevo_id, 
-            "titulo": data.get("titulo"), 
+            "id": nuevo_id, "titulo": data.get("titulo"), 
             "precio": int(data.get("precio", 10000)), 
             "limite_boletos": int(data.get("limite_boletos", 1000)), 
             "estado": "Activo"
@@ -616,71 +547,11 @@ def admin_crear_sorteo():
         guardar_datos_disco()
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
-@app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
-def admin_finalizar_sorteo(sorteo_id):
-    if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    with bloqueo_compra:
-        for s in sorteos_db:
-            if s["id"] == sorteo_id:
-                s["estado"] = "Finalizado"
-                guardar_datos_disco()
-                return jsonify({"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."})
-    return jsonify({"error": "Sorteo no encontrado"}), 404
-
-@app.route("/api/admin/difundir-nuevo-sorteo", methods=["POST"])
-def difundir_nuevo_sorteo():
-    data = request.json
-    if not verificar_admin(data): 
-        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    
-    sorteo_id = data.get("sorteo_id")
-    sorteo = next((s for s in sorteos_db if s["id"] == sorteo_id), None)
-    if not sorteo:
-        return jsonify({"error": "Sorteo no encontrado"}), 404
-
-    mensaje_difusion = (
-        f"🚨 *¡NUEVO SORTEO DISPONIBLE EN VIFRAN GROUP S.A.!* 🍀\n\n"
-        f"🏆 *Premio:* {sorteo['titulo']}\n"
-        f"💵 *Valor por boleto:* Gs. {sorteo['precio']:,}\n\n"
-        f"¡Hola! Como ya participaste con nosotros anteriormente, te avisamos antes que nadie. Escríbenos 'hola' para reservar tus números de esta nueva edición. ¡Muchísima suerte! ✨"
-    )
-
-    enviados = 0
-    for tel in clientes_db.keys():
-        enviar_mensaje_whatsapp(tel, mensaje_difusion)
-        enviados += 1
-
-    return jsonify({"mensaje": f"¡Difusión enviada con éxito a {enviados} clientes registrados!"}), 200
-
-@app.route("/api/admin/limpiar-pruebas", methods=["POST"])
-def limpiar_pruebas():
-    data = request.json
-    if not verificar_admin(data): 
-        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    
-    with bloqueo_compra:
-        global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
-        boletos_db = []
-        contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
-        lote_contador = 1
-        numeros_liberados = {}
-        lotes_pendientes = {}
-        
-        if os.path.exists(ARCHIVO_DATOS):
-            try:
-                os.remove(ARCHIVO_DATOS)
-            except Exception as e:
-                print(f"❌ Error al borrar el archivo de datos: {e}")
-
-    return jsonify({"mensaje": "¡Sistema limpiado con éxito! Todas las pruebas fueron eliminadas y los contadores volvieron a cero."}), 200
-
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
-    if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    
+    if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
     aprobados = 0
     host_actual = request.host_url
-    
     with bloqueo_compra:
         for b in boletos_db:
             if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
@@ -688,7 +559,6 @@ def admin_aprobar_lote(lote_id):
                 b["impreso"] = False  
                 aprobados += 1
                 sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-                
                 caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
                 enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
 
@@ -719,17 +589,29 @@ def marcar_como_impreso(lote_id):
 @app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
 def api_reimprimir(boleto_id):
     data = request.json
-    if not verificar_admin(data): 
-        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     with bloqueo_compra:
         boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-        if not boleto:
-            return jsonify({"error": "Boleto no encontrado"}), 404
-        
+        if not boleto: return jsonify({"error": "Boleto no encontrado"}), 404
         boleto["impreso"] = False
         guardar_datos_disco()
-    return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora con éxito."}), 200
+    return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora."}), 200
+
+@app.route("/api/admin/limpiar-pruebas", methods=["POST"])
+def limpiar_pruebas():
+    data = request.json
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
+    with bloqueo_compra:
+        global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
+        boletos_db = []
+        contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
+        lote_contador = 1
+        numeros_liberados = {}
+        lotes_pendientes = {}
+        if os.path.exists(ARCHIVO_DATOS):
+            try: os.remove(ARCHIVO_DATOS)
+            except: pass
+    return jsonify({"mensaje": "¡Sistema limpiado con éxito!"}), 200
 
 @app.route("/impresion")
 def vista_impresion_web():
