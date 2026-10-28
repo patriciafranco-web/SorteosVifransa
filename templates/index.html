@@ -1,442 +1,272 @@
-import io
-import time
-import threading
-import json
-import os
-from flask import Flask, jsonify, render_template, request, send_file, url_for
-from PIL import Image, ImageDraw, ImageFont
-import requests
-
-app = Flask(__name__)
-
-# ==========================================
-# CONFIGURACIÓN DE GREEN API (WHATSAPP)
-# ==========================================
-ID_INSTANCE = "710722782905"
-API_TOKEN_INSTANCE = "085f2d211be547b9a9377b0021c03faf845beb16436644748b"
-
-def formatear_telefono(telefono):
-    tel_limpio = "".join(filter(str.isdigit, str(telefono)))
-    if len(tel_limpio) == 10 and tel_limpio.startswith("0"):
-        tel_limpio = "595" + tel_limpio[1:]
-    elif len(tel_limpio) == 9 and tel_limpio.startswith("9"):
-        tel_limpio = "595" + tel_limpio
-    return tel_limpio
-
-def enviar_mensaje_whatsapp(telefono, texto):
-    def tarea():
-        tel_formateado = formatear_telefono(telefono)
-        url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
-        payload = {"chatId": f"{tel_formateado}@c.us", "message": texto}
-        try:
-            requests.post(url, json=payload)
-        except Exception as e:
-            print(f"❌ Error enviando mensaje Green API: {e}")
-    threading.Thread(target=tarea).start()
-
-def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
-    def tarea():
-        tel_formateado = formatear_telefono(telefono)
-        url_txt = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
-        try:
-            requests.post(url_txt, json={"chatId": f"{tel_formateado}@c.us", "message": "✅ *¡Pago verificado!* Generando tu boleto oficial con QR..."})
-        except Exception as e:
-            print(f"❌ Error enviando aviso previo: {e}")
-        
-        output = crear_imagen_boleto_memoria(boleto_id, host_url)
-        if not output: return
-        
-        url_up = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUpload/{API_TOKEN_INSTANCE}"
-        payload = {'chatId': f"{tel_formateado}@c.us", 'caption': caption}
-        files = [('file', (f'ticket_{boleto_id}.png', output.getvalue(), 'image/png'))]
-        
-        try:
-            requests.post(url_up, data=payload, files=files)
-        except Exception as e:
-            print(f"❌ Error subiendo ticket directamente: {e}")
-            
-    threading.Thread(target=tarea).start()
-
-
-# ==========================================
-# BASE DE DATOS Y PERSISTENCIA EN DISCO
-# ==========================================
-ARCHIVO_DATOS = "datos_vifran.json"
-
-sorteos_db = [{
-    "id": 1,
-    "titulo": "Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)",
-    "precio": 10000,
-    "limite_boletos": 1000,
-    "estado": "Activo",
-    "imagen_nombre": "flyer_sorteo.jpg",
-}]
-
-boletos_db = []
-clientes_db = {}
-contador_boletos_por_sorteo = {1: 1}
-lote_contador = 1
-lotes_pendientes = {}    
-numeros_liberados = {}  
-SESIONES_WHATSAPP = {}
-
-ADMIN_USERS = {
-    "patriciafranco": "Vifran2026*Secure$",
-    "edgarfranco": "Vifran2026*Secure$",
-}
-
-def guardar_datos_disco():
-    datos = {
-        "sorteos": sorteos_db,
-        "boletos": boletos_db,
-        "clientes": clientes_db,
-        "contador_boletos": contador_boletos_por_sorteo,
-        "lote_contador": lote_contador,
-        "numeros_liberados": numeros_liberados
-    }
-    try:
-        with open(ARCHIVO_DATOS, "w", encoding="utf-8") as f:
-            json.dump(datos, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"❌ Error guardando en disco: {e}")
-
-def cargar_datos_disco():
-    global sorteos_db, boletos_db, clientes_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados
-    if os.path.exists(ARCHIVO_DATOS):
-        try:
-            with open(ARCHIVO_DATOS, "r", encoding="utf-8") as f:
-                datos = json.load(f)
-                sorteos_db = datos.get("sorteos", sorteos_db)
-                boletos_db = datos.get("boletos", boletos_db)
-                clientes_db = datos.get("clientes", {})
-                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 1}).items()}
-                lote_contador = datos.get("lote_contador", 1)
-                numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
-        except Exception as e:
-            print(f"❌ Error leyendo datos del disco: {e}")
-
-cargar_datos_disco()
-
-bloqueo_compra = threading.Lock()
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/admin")
-def admin_panel():
-    return render_template("admin.html")
-
-@app.route("/api/sorteos", methods=["GET"])
-def obtener_sorteos():
-    activos = [s for s in sorteos_db if s["estado"] == "Activo"]
-    return jsonify({"sorteos": activos})
-
-# ==========================================
-# PASO 1: RESERVA DE BOLETOS (SIN DUPLICAR)
-# ==========================================
-@app.route("/api/comprar", methods=["POST"])
-def comprar():
-    global lote_contador
-    data = request.json
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorteos Vifran Group S.A.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 md:p-6 font-sans">
     
-    sorteo_id = int(data.get("sorteo_id", 1))
-    nombre = data.get("nombre")
-    telefono = data.get("telefono")
-    cedula = data.get("cedula")
-    cantidad = int(data.get("cantidad", 1))
-    metodo_pago = data.get("metodo_pago", "Transferencia Directa")
-    detalle_pago = data.get("detalle_pago", "")
-    imagen_comprobante = data.get("imagen_comprobante", "")
+    <header class="text-center mb-6 relative w-full max-w-5xl">
+        <a href="/admin" class="absolute right-0 top-0 bg-slate-800 hover:bg-slate-700 text-xs font-bold px-3 py-1.5 rounded-xl transition text-amber-400 border border-slate-700 shadow">
+            🔒 Admin
+        </a>
+        <h1 class="text-2xl md:text-3xl font-black text-amber-400">Sorteos Vifran Group S.A.</h1>
+        <p class="text-xs md:text-sm text-slate-400 italic mt-1">"Tu suerte, nuestro compromiso"</p>
+    </header>
 
-    if not nombre or not telefono or not cedula or cantidad < 1:
-        return jsonify({"error": "Todos los campos son obligatorios."}), 400
-
-    with bloqueo_compra:
-        clientes_db[telefono] = {"nombre": nombre, "cedula": cedula}
-
-        sorteo_activo = next((s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"), None)
-        if not sorteo_activo:
-            return jsonify({"error": "El sorteo seleccionado ya no está activo."}), 400
-
-        total_activos = len([b for b in boletos_db if b["sorteo_id"] == sorteo_id])
-        if (total_activos + cantidad) > sorteo_activo["limite_boletos"]:
-            return jsonify({"error": "No hay suficientes boletos disponibles para esa cantidad."}), 400
-
-        current_lote = lote_contador
-        lote_contador += 1
-
-        nuevos_boletos_ids = []
-        if sorteo_id not in numeros_liberados:
-            numeros_liberados[sorteo_id] = []
-
-        for _ in range(cantidad):
-            if numeros_liberados[sorteo_id]:
-                numeros_liberados[sorteo_id].sort()
-                num_boleto = numeros_liberados[sorteo_id].pop(0)
-            else:
-                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 1)
-                contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
-            nuevos_boletos_ids.append(num_boleto)
-
-        for num_boleto in nuevos_boletos_ids:
-            nuevo_boleto = {
-                "id": num_boleto,
-                "sorteo_id": sorteo_id,
-                "lote_id": current_lote,
-                "nombre": nombre,
-                "telefono": telefono,
-                "cedula": cedula,
-                "cantidad_lote": cantidad,
-                "imagen_comprobante": imagen_comprobante,
-                "metodo_pago": metodo_pago,
-                "detalle_pago": detalle_pago,
-                "estado": "Pendiente",
-                "impreso": False,
-            }
-            boletos_db.append(nuevo_boleto)
-
-        lotes_pendientes[current_lote] = {
-            "telefono": telefono,
-            "tiempo_reserva": time.time(),
-            "recordatorio_enviado": False
-        }
-
-        guardar_datos_disco()
-
-    rango_str = (
-        f"#{str(nuevos_boletos_ids[0]).zfill(5)}"
-        if len(nuevos_boletos_ids) == 1
-        else f"#{str(nuevos_boletos_ids[0]).zfill(5)} al #{str(nuevos_boletos_ids[-1]).zfill(5)}"
-    )
-
-    return jsonify({
-        "mensaje": f"¡Reserva de {cantidad} boleto(s) registrada con éxito!",
-        "rango": rango_str,
-        "lote_id": current_lote
-    }), 200
-
-# ==========================================
-# PASO 2: SUBIR COMPROBANTE AL LOTE EXISTENTE (SIN CREAR NUEVOS NÚMEROS)
-# ==========================================
-@app.route("/api/subir-comprobante", methods=["POST"])
-def subir_comprobante():
-    data = request.json
-    lote_id = data.get("lote_id")
-    imagen_comprobante = data.get("imagen_comprobante", "")
-
-    if not lote_id or not imagen_comprobante:
-        return jsonify({"error": "Faltan datos del lote o la imagen."}), 400
-
-    with bloqueo_compra:
-        actualizados = 0
-        for b in boletos_db:
-            if b["lote_id"] == int(lote_id):
-                b["imagen_comprobante"] = imagen_comprobante
-                actualizados += 1
-
-        if actualizados > 0:
-            if int(lote_id) in lotes_pendientes:
-                del lotes_pendientes[int(lote_id)]
-            guardar_datos_disco()
-            return jsonify({"mensaje": "¡Comprobante adjuntado correctamente al lote!"}), 200
-        else:
-            return jsonify({"error": "Lote no encontrado."}), 404
-
-@app.route("/api/consultar", methods=["POST"])
-def consultar():
-    data = request.json
-    termino = data.get("termino")
-    resultados = [b for b in boletos_db if b["telefono"] == termino or b["cedula"] == termino]
-    if not resultados:
-        return jsonify({"encontrado": False, "mensaje": "No se encontraron boletos."}), 404
-
-    for b in resultados:
-        s = next((item for item in sorteos_db if item["id"] == b["sorteo_id"]), None)
-        b["sorteo_titulo"] = s["titulo"] if s else "Sorteo General"
-
-    return jsonify({"encontrado": True, "boletos": resultados}), 200
-
-# ==========================================
-# GENERADOR Y VALIDACIÓN DE TICKETS
-# ==========================================
-def crear_imagen_boleto_memoria(boleto_id, host_url):
-    boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto: return None
-
-    sorteo_titulo = "Sorteo de 4 iPhones"
-    for s in sorteos_db:
-        if s["id"] == boleto["sorteo_id"]:
-            sorteo_titulo = s["titulo"]
-            break
-
-    ancho, alto = 420, 580
-    img = Image.new("RGB", (ancho, alto), color="white")
-    d = ImageDraw.Draw(img)
-
-    try:
-        font_titulo = ImageFont.truetype("arial.ttf", 20)
-        font_texto = ImageFont.truetype("arial.ttf", 14)
-        font_grande = ImageFont.truetype("arial.ttf", 26)
-    except:
-        font_titulo = ImageFont.load_default()
-        font_texto = ImageFont.load_default()
-        font_grande = ImageFont.load_default()
-
-    d.text((ancho / 2, 25), "VIFRAN GROUP S.A.", fill="black", anchor="mm", font=font_titulo)
-    d.line([(20, 45), (ancho - 20, 45)], fill="black", width=2)
-    d.text((20, 65), f"CLIENTE: {boleto['nombre'].upper()}", fill="black", font=font_texto)
-    d.text((20, 90), f"RUC/CI: {boleto['cedula']} | TEL: {boleto['telefono']}", fill="black", font=font_texto)
-    d.line([(20, 115), (ancho - 20, 115)], fill="black", width=1)
-    d.text((20, 130), f"EDICION: {sorteo_titulo}", fill="black", font=font_texto)
-    d.text((20, 155), f"PAGO: {boleto.get('metodo_pago', 'Directo')}", fill="black", font=font_texto)
-    d.line([(20, 180), (ancho - 20, 180)], fill="black", width=1)
-    d.text((ancho / 2, 210), f"NRO: #{str(boleto['id']).zfill(5)}", fill="black", anchor="mm", font=font_grande)
-    d.line([(20, 240), (ancho - 20, 240)], fill="black", width=1)
-
-    url_segura = host_url.rstrip('/').replace("http://", "https://")
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={url_segura}/validar/{boleto['id']}"
-    
-    try:
-        res_qr = requests.get(qr_url)
-        if res_qr.status_code == 200:
-            qr_img = Image.open(io.BytesIO(res_qr.content)).resize((150, 150))
-            img.paste(qr_img, (int((ancho - 150) / 2), 255))
-    except Exception:
-        pass
-
-    output = io.BytesIO()
-    img.save(output, format="PNG")
-    output.seek(0)
-    return output
-
-@app.route("/api/ticket-imagen/<int:boleto_id>")
-def obtener_ticket_imagen(boleto_id):
-    output = crear_imagen_boleto_memoria(boleto_id, request.host_url)
-    if not output: return "Boleto no encontrado", 404
-    return send_file(output, mimetype="image/png")
-
-@app.route("/validar/<int:boleto_id>")
-def validar_boleto_qr(boleto_id):
-    boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto: return "<h3>Boleto no encontrado</h3>", 404
-
-    sorteo = next((s for s in sorteos_db if s["id"] == boleto["sorteo_id"]), {"titulo": "Sorteo General", "precio": 10000})
-    estado_color = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" if boleto["estado"] == "Aprobado" else "text-amber-400 bg-amber-500/10 border-amber-500/30"
-
-    return f"""
-        <!DOCTYPE html>
-        <html lang="es">
-        <head><meta charset="UTF-8"><title>Validación de Boleto</title><script src="https://cdn.tailwindcss.com"></script></head>
-        <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4 font-sans">
-            <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 max-w-md w-full space-y-6 text-center">
-                <h1 class="text-xl font-black text-amber-400">VIFRAN GROUP S.A.</h1>
-                <span class="text-3xl font-black text-amber-400 block">#{str(boleto['id']).zfill(5)}</span>
-                <p class="text-sm font-bold">{sorteo['titulo']}</p>
-                <p class="text-xs text-slate-300">Cliente: {boleto['nombre']} (CI: {boleto['cedula']})</p>
-                <span class="inline-block px-4 py-1.5 rounded-xl text-xs font-bold border {estado_color}">Estado: {boleto['estado']}</span>
+    <div class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- COLUMNA IZQUIERDA: FLYER -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-center space-x-2 text-amber-400 font-bold text-sm">
+                <span>📱</span>
+                <span id="tituloSorteoHeader">Sorteo de 4 iPhones</span>
             </div>
-        </body>
-        </html>
-    """
+            
+            <div class="w-full rounded-xl overflow-hidden border border-slate-700 shadow-lg bg-black">
+                <img id="imgFlyer" src="{{ url_for('static', filename='flyer_sorteo.jpg') }}" alt="Flyer Sorteo" class="w-full h-auto object-cover">
+            </div>
 
-# ==========================================
-# API DE ADMINISTRACIÓN
-# ==========================================
-def verificar_admin(data):
-    return data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password")
+            <div class="text-center text-xs text-slate-400">
+                <p>🎁 ¡4 Premios / 4 Ganadores! (Un iPhone para cada ganador)</p>
+            </div>
+        </div>
 
-@app.route("/api/admin/datos", methods=["POST"])
-def admin_datos():
-    if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
-    return jsonify({"sorteos": sorteos_db, "boletos": boletos_db, "total_clientes": len(clientes_db)})
+        <!-- COLUMNA DERECHA: FORMULARIO -->
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-5">
+            <div class="border-b border-slate-800 pb-3">
+                <h2 class="text-lg font-black text-amber-400 flex items-center space-x-2">
+                    <span>🎟️</span>
+                    <span>Comprar Tu Boleto</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-1">Costo por boleto: <span id="precioBoletoTxt" class="text-emerald-400 font-bold">Gs. 10.000</span></p>
+            </div>
 
-@app.route("/api/admin/crear-sorteo", methods=["POST"])
-def admin_crear_sorteo():
-    data = request.json
-    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
-    with bloqueo_compra:
-        nuevo_id = len(sorteos_db) + 1
-        nuevo_sorteo = {
-            "id": nuevo_id, "titulo": data.get("titulo"), 
-            "precio": int(data.get("precio", 10000)), 
-            "limite_boletos": int(data.get("limite_boletos", 1000)), 
-            "estado": "Activo"
+            <!-- PASO 1: DATOS DE COMPRA -->
+            <form id="formCompra" class="space-y-4">
+                <input type="hidden" id="selectSorteo" value="1">
+
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Nombre Completo</label>
+                    <input type="text" id="nombre" required placeholder="Ej: Juan Pérez" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Cédula de Identidad</label>
+                    <input type="text" id="cedula" required placeholder="Ej: 1234567" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Teléfono / WhatsApp</label>
+                    <input type="text" id="telefono" required placeholder="Ej: 0981123456" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Cantidad de Boletos</label>
+                    <input type="number" id="cantidad" min="1" value="1" onchange="actualizarTotal()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-400">
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-2">Selecciona el Método de Pago</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" id="btnTransferencia" onclick="seleccionarMetodo('Transferencia Directa')" class="p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-amber-500 text-slate-950 border-amber-400 shadow-lg">
+                            <span>🏦 Transferencia</span>
+                            <span class="text-[10px] opacity-80">ueno / Eko / Bancos</span>
+                        </button>
+                        <button type="button" id="btnCripto" onclick="seleccionarMetodo('Cripto (USDT)')" class="p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800">
+                            <span>🪙 Cripto (USDT)</span>
+                            <span class="text-[10px] opacity-80">Binance Pay</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="infoTransferencia" class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-2">
+                    <p class="font-bold text-amber-400">📂 Datos para la Transferencia (ueno):</p>
+                    <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-emerald-400 space-y-1">
+                        <p>🔸 RUC / Alias: <span class="text-white">4775796-5</span></p>
+                        <p>🔸 Titular: <span class="text-white">Patricia Franco</span></p>
+                    </div>
+                </div>
+
+                <div id="infoCrypto" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
+                    <p class="font-bold text-amber-400">🪙 Pago vía Binance Pay (USDT):</p>
+                    <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
+                        <p class="text-emerald-400 font-bold">Monto exacto a enviar: <span id="montoUSDT" class="text-white text-sm font-mono">0.00</span> USDT</p>
+                        <p class="text-slate-400">📧 Correo: <span class="text-white">patricia99franco@gmail.com</span></p>
+                        <p class="text-slate-400">🆔 Binance ID: <span class="text-white">40280723</span></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Nro. de Orden / ID de Transacción:</label>
+                        <input type="text" id="hashCrypto" placeholder="Ej: 8493029102" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                    <span class="text-xs text-slate-400 uppercase tracking-widest block mb-1">Total a Pagar</span>
+                    <span id="totalPagarGs" class="text-xl font-black text-amber-400">Gs. 10.000</span>
+                </div>
+
+                <button type="submit" id="btnReservar" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-xl transition shadow-lg text-sm md:text-base tracking-wide">
+                    1. Reservar Mis Números
+                </button>
+            </form>
+
+            <!-- PASO 2: SUBIR COMPROBANTE (OCULTO HASTA RESERVAR) -->
+            <div id="seccionSubirComprobante" class="hidden bg-slate-950 p-5 rounded-xl border border-emerald-500/40 space-y-4">
+                <div class="text-center space-y-1">
+                    <p class="text-emerald-400 font-bold text-sm">🎉 ¡Números Reservados con Éxito!</p>
+                    <p id="textoRangoAsignado" class="text-xs text-amber-400 font-mono"></p>
+                    <p class="text-xs text-slate-400">Ahora adjunta tu comprobante para que el administrador lo apruebe.</p>
+                </div>
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-amber-400 mb-1">📸 Foto del Comprobante de Pago</label>
+                    <input type="file" id="inputComprobante" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-amber-400 hover:file:bg-slate-700 cursor-pointer">
+                </div>
+                <button onclick="enviarComprobante()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition shadow-lg text-sm">
+                    2. Enviar Comprobante y Finalizar
+                </button>
+            </div>
+
+            <div id="resultadoCompra" class="mt-4 text-center text-sm font-semibold"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const TASA_USDT_GS = 7800; 
+        let precioActualBoleto = 10000;
+        let metodoSeleccionado = 'Transferencia Directa';
+        let loteGeneradoId = null;
+
+        async function cargarSorteos() {
+            try {
+                const res = await fetch('/api/sorteos');
+                const data = await res.json();
+                if (data.sorteos && data.sorteos.length > 0) {
+                    const sorteo = data.sorteos[0];
+                    document.getElementById('selectSorteo').value = sorteo.id;
+                    document.getElementById('tituloSorteoHeader').innerText = sorteo.titulo;
+                    precioActualBoleto = sorteo.precio;
+                    document.getElementById('precioBoletoTxt').innerText = `Gs. ${sorteo.precio.toLocaleString()}`;
+                    actualizarTotal();
+                }
+            } catch (e) {
+                console.error("Error cargando sorteos:", e);
+            }
         }
-        sorteos_db.append(nuevo_sorteo)
-        contador_boletos_por_sorteo[nuevo_id] = 1
-        guardar_datos_disco()
-    return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
-@app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
-def admin_aprobar_lote(lote_id):
-    if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
-    aprobados = 0
-    host_actual = request.host_url
-    with bloqueo_compra:
-        for b in boletos_db:
-            if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
-                b["estado"] = "Aprobado"
-                b["impreso"] = False  
-                aprobados += 1
-                sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-                caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
-                enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
+        function seleccionarMetodo(metodo) {
+            metodoSeleccionado = metodo;
+            const btnTransf = document.getElementById('btnTransferencia');
+            const btnCripto = document.getElementById('btnCripto');
+            const infoTransf = document.getElementById('infoTransferencia');
+            const infoCrypto = document.getElementById('infoCrypto');
 
-        if aprobados > 0: 
-            guardar_datos_disco()
-            return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
-    return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
+            if (metodo === 'Transferencia Directa') {
+                btnTransf.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-amber-500 text-slate-950 border-amber-400 shadow-lg";
+                btnCripto.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800";
+                infoTransf.classList.remove('hidden');
+                infoCrypto.classList.add('hidden');
+            } else {
+                btnCripto.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-amber-500 text-slate-950 border-amber-400 shadow-lg";
+                btnTransf.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800";
+                infoTransf.classList.add('hidden');
+                infoCrypto.classList.remove('hidden');
+                actualizarTotal();
+            }
+        }
 
-@app.route("/api/pendientes-impresion", methods=["GET"])
-def obtener_pendientes_impresion():
-    pendientes, lotes_procesados = [], set()
-    with bloqueo_compra:
-        for b in boletos_db:
-            if b["estado"] == "Aprobado" and not b.get("impreso", False) and b["lote_id"] not in lotes_procesados:
-                lotes_procesados.add(b["lote_id"])
-                sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-                pendientes.append({"id": b["lote_id"], "sorteo_titulo": sorteo["titulo"], "nombre": b["nombre"], "cedula": b["cedula"], "telefono": b["telefono"], "numeros_asignados": [str(x["id"]).zfill(5) for x in boletos_db if x["lote_id"] == b["lote_id"]]})
-    return jsonify(pendientes), 200
+        function actualizarTotal() {
+            const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+            const totalGs = precioActualBoleto * cantidad;
+            document.getElementById('totalPagarGs').innerText = `Gs. ${totalGs.toLocaleString()}`;
 
-@app.route("/api/marcar-impreso/<int:lote_id>", methods=["POST"])
-def marcar_como_impreso(lote_id):
-    with bloqueo_compra:
-        for b in boletos_db:
-            if b["lote_id"] == lote_id: b["impreso"] = True
-        guardar_datos_disco()
-    return jsonify({"status": "success"}), 200
+            if (metodoSeleccionado.includes('Cripto')) {
+                let totalUSDT = (totalGs / TASA_USDT_GS).toFixed(2);
+                document.getElementById('montoUSDT').innerText = totalUSDT;
+            }
+        }
 
-@app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
-def api_reimprimir(boleto_id):
-    data = request.json
-    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
-    with bloqueo_compra:
-        boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-        if not boleto: return jsonify({"error": "Boleto no encontrado"}), 404
-        boleto["impreso"] = False
-        guardar_datos_disco()
-    return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora."}), 200
+        // PASO 1: Registrar la reserva
+        document.getElementById('formCompra').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const resDiv = document.getElementById('resultadoCompra');
+            resDiv.className = "mt-4 text-center text-sm font-semibold text-amber-400";
+            resDiv.innerText = "Reservando números...";
 
-@app.route("/api/admin/limpiar-pruebas", methods=["POST"])
-def limpiar_pruebas():
-    data = request.json
-    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
-    with bloqueo_compra:
-        global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
-        boletos_db = []
-        contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
-        lote_contador = 1
-        numeros_liberados = {}
-        lotes_pendientes = {}
-        if os.path.exists(ARCHIVO_DATOS):
-            try: os.remove(ARCHIVO_DATOS)
-            except: pass
-    return jsonify({"mensaje": "¡Sistema limpiado con éxito!"}), 200
+            const detallePagoFinal = metodoSeleccionado.includes('Cripto') 
+                ? document.getElementById('hashCrypto').value 
+                : 'Transferencia Directa';
 
-@app.route("/impresion")
-def vista_impresion_web():
-    return render_template("impresion.html")
+            const res = await fetch('/api/comprar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sorteo_id: document.getElementById('selectSorteo').value,
+                    nombre: document.getElementById('nombre').value,
+                    cedula: document.getElementById('cedula').value,
+                    telefono: document.getElementById('telefono').value,
+                    cantidad: parseInt(document.getElementById('cantidad').value),
+                    metodo_pago: metodoSeleccionado,
+                    detalle_pago: detallePagoFinal
+                })
+            });
+            const data = await res.json();
+            
+            if(res.ok) {
+                loteGeneradoId = data.lote_id;
+                document.getElementById('textoRangoAsignado').innerText = `Tus números asignados son: ${data.rango}`;
+                document.getElementById('formCompra').classList.add('hidden');
+                document.getElementById('seccionSubirComprobante').classList.remove('hidden');
+                resDiv.innerText = "";
+            } else {
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-rose-400";
+                resDiv.innerText = data.error;
+            }
+        });
 
-if __name__ == "__main__":
-    app.run(debug=True)
+        // PASO 2: Subir comprobante al lote ya existente (SIN DUPLICAR NÚMEROS)
+        async function enviarComprobante() {
+            const fileInput = document.getElementById('inputComprobante');
+            const resDiv = document.getElementById('resultadoCompra');
+
+            if (fileInput.files.length === 0) {
+                alert("Por favor adjunta la foto de tu comprobante.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            await new Promise((resolve) => { reader.onload = resolve; });
+            const imagenBase64 = reader.result;
+
+            resDiv.className = "mt-4 text-center text-sm font-semibold text-amber-400";
+            resDiv.innerText = "Subiendo comprobante...";
+
+            const res = await fetch('/api/subir-comprobante', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    lote_id: loteGeneradoId,
+                    imagen_comprobante: imagenBase64
+                })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-emerald-400";
+                resDiv.innerText = "¡Comprobante enviado con éxito! El administrador lo verificará pronto.";
+                document.getElementById('seccionSubirComprobante').classList.add('hidden');
+            } else {
+                resDiv.className = "mt-4 text-center text-sm font-semibold text-rose-400";
+                resDiv.innerText = data.error;
+            }
+        }
+
+        cargarSorteos();
+    </script>
+</body>
+</html>
