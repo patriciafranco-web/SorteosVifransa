@@ -202,14 +202,14 @@ def obtener_sorteos():
     return jsonify({"sorteos": activos})
 
 
+# Candado de seguridad para asignación concurrente limpia
+bloqueo_compra = threading.Lock()
+
 @app.route("/api/comprar", methods=["POST"])
 def comprar():
     global lote_contador
     data = request.json
     
-    if data.get("imagen_comprobante"):
-        return jsonify({"error": "La reserva no debe incluir el comprobante aquí. Por favor, recargue la página (Ctrl+F5)."}), 400
-
     sorteo_id = int(data.get("sorteo_id", 1))
     nombre = data.get("nombre")
     telefono = data.get("telefono")
@@ -218,60 +218,62 @@ def comprar():
     
     metodo_pago = data.get("metodo_pago", "Transferencia Directa")
     detalle_pago = data.get("detalle_pago", "")
+    imagen_comprobante = data.get("imagen_comprobante", "")
 
     if not nombre or not telefono or not cedula or cantidad < 1:
         return jsonify({"error": "Todos los campos son obligatorios."}), 400
 
-    clientes_db[telefono] = {"nombre": nombre, "cedula": cedula}
+    with bloqueo_compra:
+        clientes_db[telefono] = {"nombre": nombre, "cedula": cedula}
 
-    sorteo_activo = next((s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"), None)
-    if not sorteo_activo:
-        return jsonify({"error": "El sorteo seleccionado ya no está activo."}), 400
+        sorteo_activo = next((s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"), None)
+        if not sorteo_activo:
+            return jsonify({"error": "El sorteo seleccionado ya no está activo."}), 400
 
-    total_activos = len([b for b in boletos_db if b["sorteo_id"] == sorteo_id])
-    if (total_activos + cantidad) > sorteo_activo["limite_boletos"]:
-        return jsonify({"error": "No hay suficientes boletos disponibles para esa cantidad."}), 400
+        total_activos = len([b for b in boletos_db if b["sorteo_id"] == sorteo_id])
+        if (total_activos + cantidad) > sorteo_activo["limite_boletos"]:
+            return jsonify({"error": "No hay suficientes boletos disponibles para esa cantidad."}), 400
 
-    current_lote = lote_contador
-    lote_contador += 1
+        current_lote = lote_contador
+        lote_contador += 1
 
-    nuevos_boletos_ids = []
-    if sorteo_id not in numeros_liberados:
-        numeros_liberados[sorteo_id] = []
+        nuevos_boletos_ids = []
+        if sorteo_id not in numeros_liberados:
+            numeros_liberados[sorteo_id] = []
 
-    for _ in range(cantidad):
-        if numeros_liberados[sorteo_id]:
-            numeros_liberados[sorteo_id].sort()
-            num_boleto = numeros_liberados[sorteo_id].pop(0)
-        else:
-            num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 1)
-            contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
-        nuevos_boletos_ids.append(num_boleto)
+        for _ in range(cantidad):
+            if numeros_liberados[sorteo_id]:
+                numeros_liberados[sorteo_id].sort()
+                num_boleto = numeros_liberados[sorteo_id].pop(0)
+            else:
+                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 1)
+                contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
+            nuevos_boletos_ids.append(num_boleto)
 
-    for num_boleto in nuevos_boletos_ids:
-        nuevo_boleto = {
-            "id": num_boleto,
-            "sorteo_id": sorteo_id,
-            "lote_id": current_lote,
-            "nombre": nombre,
+        for num_boleto in nuevos_boletos_ids:
+            nuevo_boleto = {
+                "id": num_boleto,
+                "sorteo_id": sorteo_id,
+                "lote_id": current_lote,
+                "nombre": nombre,
+                "telefono": telefono,
+                "cedula": cedula,
+                "cantidad_lote": cantidad,
+                "imagen_comprobante": imagen_comprobante,
+                "metodo_pago": metodo_pago,
+                "detalle_pago": detalle_pago,
+                "estado": "Pendiente",
+                "impreso": False,
+            }
+            boletos_db.append(nuevo_boleto)
+
+        lotes_pendientes[current_lote] = {
             "telefono": telefono,
-            "cedula": cedula,
-            "cantidad_lote": cantidad,
-            "imagen_comprobante": "",
-            "metodo_pago": metodo_pago,
-            "detalle_pago": detalle_pago,
-            "estado": "Pendiente",
-            "impreso": False,
+            "tiempo_reserva": time.time(),
+            "recordatorio_enviado": False
         }
-        boletos_db.append(nuevo_boleto)
 
-    lotes_pendientes[current_lote] = {
-        "telefono": telefono,
-        "tiempo_reserva": time.time(),
-        "recordatorio_enviado": False
-    }
-
-    guardar_datos_disco()
+        guardar_datos_disco()
 
     rango_str = (
         f"#{str(nuevos_boletos_ids[0]).zfill(5)}"
@@ -389,57 +391,58 @@ def webhook_whatsapp():
             sesion["datos"]["nombre"] = nombre_cliente
             sesion["datos"]["cedula"] = cedula_cliente
 
-            clientes_db[telefono] = {"nombre": nombre_cliente, "cedula": cedula_cliente}
+            with bloqueo_compra:
+                clientes_db[telefono] = {"nombre": nombre_cliente, "cedula": cedula_cliente}
 
-            sorteo = sorteos_db[0]
-            cantidad = sesion["datos"]["cantidad"]
+                sorteo = sorteos_db[0]
+                cantidad = sesion["datos"]["cantidad"]
 
-            global lote_contador
-            current_lote = lote_contador
-            lote_contador += 1
+                global lote_contador
+                current_lote = lote_contador
+                lote_contador += 1
 
-            nuevos_boletos_ids = []
-            if sorteo["id"] not in numeros_liberados:
-                numeros_liberados[sorteo["id"]] = []
+                nuevos_boletos_ids = []
+                if sorteo["id"] not in numeros_liberados:
+                    numeros_liberados[sorteo["id"]] = []
 
-            for _ in range(cantidad):
-                if numeros_liberados[sorteo["id"]]:
-                    numeros_liberados[sorteo["id"]].sort()
-                    num_boleto = numeros_liberados[sorteo["id"]].pop(0)
-                else:
-                    num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 1)
-                    contador_boletos_por_sorteo[sorteo["id"]] = num_boleto + 1
-                nuevos_boletos_ids.append(num_boleto)
+                for _ in range(cantidad):
+                    if numeros_liberados[sorteo["id"]]:
+                        numeros_liberados[sorteo["id"]].sort()
+                        num_boleto = numeros_liberados[sorteo["id"]].pop(0)
+                    else:
+                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 1)
+                        contador_boletos_por_sorteo[sorteo["id"]] = num_boleto + 1
+                    nuevos_boletos_ids.append(num_boleto)
 
-            numeros_str = []
-            for num_boleto in nuevos_boletos_ids:
-                nuevo_boleto = {
-                    "id": num_boleto,
-                    "sorteo_id": sorteo["id"],
-                    "lote_id": current_lote,
-                    "nombre": nombre_cliente,
+                numeros_str = []
+                for num_boleto in nuevos_boletos_ids:
+                    nuevo_boleto = {
+                        "id": num_boleto,
+                        "sorteo_id": sorteo["id"],
+                        "lote_id": current_lote,
+                        "nombre": nombre_cliente,
+                        "telefono": telefono,
+                        "cedula": cedula_cliente,
+                        "cantidad_lote": cantidad,
+                        "imagen_comprobante": "",
+                        "metodo_pago": "WhatsApp / ueno",
+                        "detalle_pago": "Transferencia Directa",
+                        "estado": "Pendiente",
+                        "impreso": False,
+                    }
+                    boletos_db.append(nuevo_boleto)
+                    numeros_str.append(str(num_boleto).zfill(5))
+
+                sesion["datos"]["lote_id"] = current_lote
+                sesion["datos"]["numeros"] = numeros_str
+
+                lotes_pendientes[current_lote] = {
                     "telefono": telefono,
-                    "cedula": cedula_cliente,
-                    "cantidad_lote": cantidad,
-                    "imagen_comprobante": "",
-                    "metodo_pago": "WhatsApp / ueno",
-                    "detalle_pago": "Transferencia Directa",
-                    "estado": "Pendiente",
-                    "impreso": False,
+                    "tiempo_reserva": time.time(),
+                    "recordatorio_enviado": False
                 }
-                boletos_db.append(nuevo_boleto)
-                numeros_str.append(str(num_boleto).zfill(5))
 
-            sesion["datos"]["lote_id"] = current_lote
-            sesion["datos"]["numeros"] = numeros_str
-
-            lotes_pendientes[current_lote] = {
-                "telefono": telefono,
-                "tiempo_reserva": time.time(),
-                "recordatorio_enviado": False
-            }
-
-            guardar_datos_disco()
+                guardar_datos_disco()
 
             sesion["paso"] = "ESPERANDO_COMPROBANTE"
             enviar_mensaje_whatsapp(
@@ -454,14 +457,15 @@ def webhook_whatsapp():
             current_lote = sesion["datos"].get("lote_id")
 
             if current_lote:
-                for b in boletos_db:
-                    if b["lote_id"] == current_lote:
-                        b["imagen_comprobante"] = download_url
-                
-                if current_lote in lotes_pendientes:
-                    del lotes_pendientes[current_lote]
-                
-                guardar_datos_disco()
+                with bloqueo_compra:
+                    for b in boletos_db:
+                        if b["lote_id"] == current_lote:
+                            b["imagen_comprobante"] = download_url
+                    
+                    if current_lote in lotes_pendientes:
+                        del lotes_pendientes[current_lote]
+                    
+                    guardar_datos_disco()
 
             enviar_mensaje_whatsapp(
                 telefono,
@@ -598,27 +602,29 @@ def admin_crear_sorteo():
     if not verificar_admin(data): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
     if not data.get("titulo"): return jsonify({"error": "El título es obligatorio"}), 400
     
-    nuevo_id = len(sorteos_db) + 1
-    nuevo_sorteo = {
-        "id": nuevo_id, 
-        "titulo": data.get("titulo"), 
-        "precio": int(data.get("precio", 10000)), 
-        "limite_boletos": int(data.get("limite_boletos", 1000)), 
-        "estado": "Activo"
-    }
-    sorteos_db.append(nuevo_sorteo)
-    contador_boletos_por_sorteo[nuevo_id] = 1
-    guardar_datos_disco()
+    with bloqueo_compra:
+        nuevo_id = len(sorteos_db) + 1
+        nuevo_sorteo = {
+            "id": nuevo_id, 
+            "titulo": data.get("titulo"), 
+            "precio": int(data.get("precio", 10000)), 
+            "limite_boletos": int(data.get("limite_boletos", 1000)), 
+            "estado": "Activo"
+        }
+        sorteos_db.append(nuevo_sorteo)
+        contador_boletos_por_sorteo[nuevo_id] = 1
+        guardar_datos_disco()
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
 @app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
 def admin_finalizar_sorteo(sorteo_id):
     if not verificar_admin(request.json): return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    for s in sorteos_db:
-        if s["id"] == sorteo_id:
-            s["estado"] = "Finalizado"
-            guardar_datos_disco()
-            return jsonify({"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."})
+    with bloqueo_compra:
+        for s in sorteos_db:
+            if s["id"] == sorteo_id:
+                s["estado"] = "Finalizado"
+                guardar_datos_disco()
+                return jsonify({"mensaje": f"Sorteo '{s['titulo']}' finalizado con éxito."})
     return jsonify({"error": "Sorteo no encontrado"}), 404
 
 @app.route("/api/admin/difundir-nuevo-sorteo", methods=["POST"])
@@ -646,25 +652,25 @@ def difundir_nuevo_sorteo():
 
     return jsonify({"mensaje": f"¡Difusión enviada con éxito a {enviados} clientes registrados!"}), 200
 
-# 🚀 NUEVA RUTA: LIMPIAR PRUEBAS DEL SISTEMA
 @app.route("/api/admin/limpiar-pruebas", methods=["POST"])
 def limpiar_pruebas():
     data = request.json
     if not verificar_admin(data): 
         return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
     
-    global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
-    boletos_db = []
-    contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
-    lote_contador = 1
-    numeros_liberados = {}
-    lotes_pendientes = {}
-    
-    if os.path.exists(ARCHIVO_DATOS):
-        try:
-            os.remove(ARCHIVO_DATOS)
-        except Exception as e:
-            print(f"❌ Error al borrar el archivo de datos: {e}")
+    with bloqueo_compra:
+        global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
+        boletos_db = []
+        contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
+        lote_contador = 1
+        numeros_liberados = {}
+        lotes_pendientes = {}
+        
+        if os.path.exists(ARCHIVO_DATOS):
+            try:
+                os.remove(ARCHIVO_DATOS)
+            except Exception as e:
+                print(f"❌ Error al borrar el archivo de datos: {e}")
 
     return jsonify({"mensaje": "¡Sistema limpiado con éxito! Todas las pruebas fueron eliminadas y los contadores volvieron a cero."}), 200
 
@@ -675,36 +681,39 @@ def admin_aprobar_lote(lote_id):
     aprobados = 0
     host_actual = request.host_url
     
-    for b in boletos_db:
-        if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
-            b["estado"] = "Aprobado"
-            b["impreso"] = False  
-            aprobados += 1
-            sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-            
-            caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
-            enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
+    with bloqueo_compra:
+        for b in boletos_db:
+            if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
+                b["estado"] = "Aprobado"
+                b["impreso"] = False  
+                aprobados += 1
+                sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
+                
+                caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
+                enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
 
-    if aprobados > 0: 
-        guardar_datos_disco()
-        return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
+        if aprobados > 0: 
+            guardar_datos_disco()
+            return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
     return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
 
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     pendientes, lotes_procesados = [], set()
-    for b in boletos_db:
-        if b["estado"] == "Aprobado" and not b.get("impreso", False) and b["lote_id"] not in lotes_procesados:
-            lotes_procesados.add(b["lote_id"])
-            sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-            pendientes.append({"id": b["lote_id"], "sorteo_titulo": sorteo["titulo"], "nombre": b["nombre"], "cedula": b["cedula"], "telefono": b["telefono"], "numeros_asignados": [str(x["id"]).zfill(5) for x in boletos_db if x["lote_id"] == b["lote_id"]]})
+    with bloqueo_compra:
+        for b in boletos_db:
+            if b["estado"] == "Aprobado" and not b.get("impreso", False) and b["lote_id"] not in lotes_procesados:
+                lotes_procesados.add(b["lote_id"])
+                sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
+                pendientes.append({"id": b["lote_id"], "sorteo_titulo": sorteo["titulo"], "nombre": b["nombre"], "cedula": b["cedula"], "telefono": b["telefono"], "numeros_asignados": [str(x["id"]).zfill(5) for x in boletos_db if x["lote_id"] == b["lote_id"]]})
     return jsonify(pendientes), 200
 
 @app.route("/api/marcar-impreso/<int:lote_id>", methods=["POST"])
 def marcar_como_impreso(lote_id):
-    for b in boletos_db:
-        if b["lote_id"] == lote_id: b["impreso"] = True
-    guardar_datos_disco()
+    with bloqueo_compra:
+        for b in boletos_db:
+            if b["lote_id"] == lote_id: b["impreso"] = True
+        guardar_datos_disco()
     return jsonify({"status": "success"}), 200
 
 @app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
@@ -713,12 +722,13 @@ def api_reimprimir(boleto_id):
     if not verificar_admin(data): 
         return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
     
-    boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto:
-        return jsonify({"error": "Boleto no encontrado"}), 404
-    
-    boleto["impreso"] = False
-    guardar_datos_disco()
+    with bloqueo_compra:
+        boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
+        if not boleto:
+            return jsonify({"error": "Boleto no encontrado"}), 404
+        
+        boleto["impreso"] = False
+        guardar_datos_disco()
     return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora con éxito."}), 200
 
 @app.route("/impresion")
