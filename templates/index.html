@@ -198,7 +198,7 @@
             resDiv.className = "mt-4 text-center font-semibold text-amber-400";
             resDiv.innerText = "Enviando comprobante...";
 
-            // CORRECCIÓN: Llamamos a la ruta específica de subir comprobante y NO a /api/comprar
+            // CORRECCIÓN DEFINITIVA: Llamamos a la ruta específica de subir comprobante y NO a /api/comprar
             const res = await fetch('/api/subir-comprobante', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -212,6 +212,10 @@
             if(res.ok) {
                 resDiv.className = "mt-4 text-center font-semibold text-emerald-400";
                 resDiv.innerText = "¡Comprobante enviado con éxito! Quedas a la espera de aprobación del administrador.";
+                
+                // Limpiamos la variable para evitar doble envío
+                loteActualId = null;
+
                 setTimeout(() => {
                     reiniciarFormulario();
                 }, 4000);
@@ -223,6 +227,7 @@
 
         function reiniciarFormulario() {
             document.getElementById('formCompra').reset();
+            document.getElementById('fotoComprobante').value = "";
             document.getElementById('resultadoCompra').innerText = "";
             document.getElementById('seccionComprobante').classList.add('hidden');
             document.getElementById('seccionFormulario').classList.remove('hidden');
