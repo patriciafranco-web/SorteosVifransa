@@ -76,9 +76,9 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 
 
 # ==========================================
-# BASE DE DATOS Y PERSISTENCIA EN DISCO
+# BASE DE DATOS Y PERSISTENCIA EN DISCO (/varidata)
 # ==========================================
-ARCHIVO_DATOS = "/var/data/datos_vifran.json" if os.path.exists("/var/data") else "datos_vifran.json"
+ARCHIVO_DATOS = "/varidata/datos_vifran.json" if os.path.exists("/varidata") else "datos_vifran.json"
 
 sorteos_db = [{
     "id": 1,
@@ -91,7 +91,7 @@ sorteos_db = [{
 
 boletos_db = []
 clientes_db = {}
-contador_boletos_por_sorteo = {1: 1}
+contador_boletos_por_sorteo = {1: 66}  # <--- Arranca estrictamente en el 66
 lote_contador = 1
 lotes_pendientes = {}    
 numeros_liberados = {}  
@@ -126,7 +126,7 @@ def cargar_datos_disco():
                 sorteos_db = datos.get("sorteos", sorteos_db)
                 boletos_db = datos.get("boletos", boletos_db)
                 clientes_db = datos.get("clientes", {})
-                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 1}).items()}
+                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 66}).items()}
                 lote_contador = datos.get("lote_contador", 1)
                 numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
         except Exception as e:
@@ -192,7 +192,7 @@ def comprar():
                 numeros_liberados[sorteo_id].sort()
                 num_boleto = numeros_liberados[sorteo_id].pop(0)
             else:
-                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 1)
+                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 66)
                 contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
             nuevos_boletos_ids.append(num_boleto)
 
@@ -382,7 +382,7 @@ def webhook_whatsapp():
                         numeros_liberados[sorteo["id"]].sort()
                         num_boleto = numeros_liberados[sorteo["id"]].pop(0)
                     else:
-                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 1)
+                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 66)
                         contador_boletos_por_sorteo[sorteo["id"]] = num_boleto + 1
                     nuevos_boletos_ids.append(num_boleto)
 
@@ -582,6 +582,61 @@ def admin_finalizar_sorteo(sorteo_id):
             return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
         else:
             return jsonify({"error": "Sorteo no encontrado"}), 404
+
+# NUEVA RUTA: AGREGAR BOLETOS MANUALMENTE DESDE EL ADMIN (Sin enviar WhatsApp)
+@app.route("/api/admin/agregar-manual", methods=["POST"])
+def admin_agregar_manual():
+    data = request.json
+    if not verificar_admin(data): 
+        return jsonify({"error": "No autorizado"}), 401
+    
+    sorteo_id = int(data.get("sorteo_id", 1))
+    nombre = data.get("nombre")
+    telefono = data.get("telefono", "0000000000")
+    cedula = data.get("cedula", "0000000")
+    cantidad = int(data.get("cantidad", 1))
+
+    if not nombre or cantidad < 1:
+        return jsonify({"error": "El nombre y la cantidad son obligatorios."}), 400
+
+    with bloqueo_compra:
+        global lote_contador
+        current_lote = lote_contador
+        lote_contador += 1
+
+        if sorteo_id not in numeros_liberados:
+            numeros_liberados[sorteo_id] = []
+
+        nuevos_boletos_ids = []
+        for _ in range(cantidad):
+            if numeros_liberados[sorteo_id]:
+                numeros_liberados[sorteo_id].sort()
+                num_boleto = numeros_liberados[sorteo_id].pop(0)
+            else:
+                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 66)
+                contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
+            nuevos_boletos_ids.append(num_boleto)
+
+        for num_boleto in nuevos_boletos_ids:
+            nuevo_boleto = {
+                "id": num_boleto,
+                "sorteo_id": sorteo_id,
+                "lote_id": current_lote,
+                "nombre": nombre,
+                "telefono": telefono,
+                "cedula": cedula,
+                "cantidad_lote": cantidad,
+                "imagen_comprobante": "Carga Manual",
+                "metodo_pago": "Manual (Recuperación)",
+                "detalle_pago": "Carga interna por reinicio",
+                "estado": "Aprobado",  # Ya nace aprobado y listo para imprimir
+                "impreso": False,
+            }
+            boletos_db.append(nuevo_boleto)
+
+        guardar_datos_disco()
+
+    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente con éxito para {nombre}!"}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
