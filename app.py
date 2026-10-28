@@ -34,6 +34,23 @@ def enviar_mensaje_whatsapp(telefono, texto):
             print(f"❌ Error enviando mensaje Green API: {e}")
     threading.Thread(target=tarea).start()
 
+def enviar_imagen_whatsapp(telefono, url_imagen, caption):
+    def tarea():
+        tel_formateado = formatear_telefono(telefono)
+        url = f"https://7107.api.greenapi.com/waInstance{ID_INSTANCE}/sendFileByUrl/{API_TOKEN_INSTANCE}"
+        url_imagen_segura = url_imagen.replace("http://", "https://")
+        payload = {
+            "chatId": f"{tel_formateado}@c.us",
+            "urlFile": url_imagen_segura,
+            "fileName": "ticket_vifran.png",
+            "caption": caption,
+        }
+        try:
+            requests.post(url, json=payload)
+        except Exception as e:
+            print(f"❌ Error enviando imagen Green API: {e}")
+    threading.Thread(target=tarea).start()
+
 def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
     def tarea():
         tel_formateado = formatear_telefono(telefono)
@@ -61,7 +78,7 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 # ==========================================
 # BASE DE DATOS Y PERSISTENCIA EN DISCO
 # ==========================================
-ARCHIVO_DATOS = "/var/data/datos_vifran.json"
+ARCHIVO_DATOS = "/var/data/datos_vifran.json" if os.path.exists("/var/data") else "datos_vifran.json"
 
 sorteos_db = [{
     "id": 1,
@@ -117,7 +134,6 @@ def cargar_datos_disco():
 
 cargar_datos_disco()
 
-# Candado de seguridad para asignación concurrente limpia
 bloqueo_compra = threading.Lock()
 
 @app.route("/")
@@ -135,7 +151,7 @@ def obtener_sorteos():
 
 
 # ==========================================
-# PASO 1: RESERVA DE BOLETOS (SIN DUPLICAR)
+# PASO 1: RESERVA DE BOLETOS (WEB)
 # ==========================================
 @app.route("/api/comprar", methods=["POST"])
 def comprar():
