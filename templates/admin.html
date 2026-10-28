@@ -96,6 +96,13 @@
         </div>
     </div>
 
+    <!-- MODAL PARA VER COMPROBANTES EN GRANDE -->
+    <div id="modalImagen" class="fixed inset-0 z-50 hidden bg-slate-950/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <button onclick="cerrarModal()" class="absolute top-6 right-6 text-white text-5xl font-light cursor-pointer hover:text-rose-500 transition">&times;</button>
+        <img id="imgEnModal" src="" class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-700">
+        <button onclick="cerrarModal()" class="mt-6 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-6 py-2 rounded-xl text-white font-bold transition">Cerrar Visor</button>
+    </div>
+
     <script>
         let currentUser = localStorage.getItem('vifran_user') || '';
         let currentPass = localStorage.getItem('vifran_pass') || '';
@@ -130,7 +137,6 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ usuario: u, password: p })
             });
-            const data = await res.json();
 
             if(res.ok) {
                 localStorage.setItem('vifran_user', u);
@@ -144,6 +150,17 @@
                 document.getElementById('errorLogin').innerText = "Usuario o contraseña incorrectos.";
             }
         });
+
+        // Funciones del Visor de Imágenes (Modal)
+        function abrirModal(src) {
+            document.getElementById('imgEnModal').src = src;
+            document.getElementById('modalImagen').classList.remove('hidden');
+        }
+
+        function cerrarModal() {
+            document.getElementById('modalImagen').classList.add('hidden');
+            document.getElementById('imgEnModal').src = "";
+        }
 
         async function cargarDatosAdmin() {
             const res = await fetch('/api/admin/datos', {
@@ -229,7 +246,8 @@
                             if(l.imagen.startsWith('http')) {
                                 comprobanteHtml = `<div class="mt-2"><a href="${l.imagen}" target="_blank" class="inline-block bg-slate-950 px-3 py-2 rounded-xl border border-slate-700 text-amber-400 text-xs font-bold underline hover:text-amber-300">🔍 Ver Comprobante de WhatsApp (Abrir Imagen)</a></div>`;
                             } else {
-                                comprobanteHtml = `<div class="mt-2"><a href="${l.imagen}" target="_blank"><img src="${l.imagen}" alt="Comprobante" class="w-32 h-32 object-cover rounded-xl border border-slate-700 hover:opacity-80 transition cursor-pointer"></a></div>`;
+                                // Aquí llamamos a la función abrirModal() en lugar de abrir en nueva pestaña
+                                comprobanteHtml = `<div class="mt-2"><img src="${l.imagen}" onclick="abrirModal(this.src)" alt="Comprobante" class="w-32 h-32 object-cover rounded-xl border border-slate-700 hover:opacity-80 transition cursor-pointer shadow-md ring-2 ring-transparent hover:ring-amber-400"></div>`;
                             }
                         }
 
@@ -319,7 +337,7 @@
         function cerrarSesion() {
             localStorage.removeItem('vifran_user');
             localStorage.removeItem('vifran_pass');
-            window.location.href = "/admin";
+            window.location.reload();
         }
     </script>
 </body>
