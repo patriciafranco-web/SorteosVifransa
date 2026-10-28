@@ -547,6 +547,26 @@ def admin_crear_sorteo():
         guardar_datos_disco()
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
+@app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
+def admin_finalizar_sorteo(sorteo_id):
+    data = request.json
+    if not verificar_admin(data): 
+        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+    
+    with bloqueo_compra:
+        encontrado = False
+        for s in sorteos_db:
+            if s["id"] == sorteo_id:
+                s["estado"] = "Finalizado"
+                encontrado = True
+                break
+        
+        if encontrado:
+            guardar_datos_disco()
+            return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
+        else:
+            return jsonify({"error": "Sorteo no encontrado"}), 404
+
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
     if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
