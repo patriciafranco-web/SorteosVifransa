@@ -29,7 +29,7 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
   payload = {
       "chatId": f"{telefono}@c.us",
       "urlFile": url_imagen,
-      "fileName": "ticket_sorteo.png",
+      "fileName": "flyer_sorteo.png",
       "caption": caption,
   }
   try:
@@ -40,11 +40,11 @@ def enviar_imagen_whatsapp(telefono, url_imagen, caption):
 
 
 # ==========================================
-# BASE DE DATOS EN MEMORIA (SORTEOS Y BOLETOS)
+# BASE DE DATOS EN MEMORIA (SORTEO VIFRAN)
 # ==========================================
 sorteos_db = [{
     "id": 1,
-    "titulo": "S10 Más exclusiva del Py",
+    "titulo": "Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)",
     "precio": 10000,
     "limite_boletos": 1000,
     "estado": "Activo",
@@ -116,21 +116,25 @@ def webhook_whatsapp():
     sesion = SESIONES_WHATSAPP[telefono]
     paso = sesion["paso"]
 
-    # PASO 1: Saludo inicial y envío de texto + flyer
+    # PASO 1: Saludo inicial y envío del flyer oficial
     if "hola" in mensaje_lower or paso == "INICIO":
       sesion["paso"] = "ESPERANDO_CANTIDAD"
       sorteo = sorteos_db[0]
 
-      # Primero enviamos un saludo de texto para asegurar respuesta inmediata
-      enviar_mensaje_whatsapp(
-          telefono,
-          f"¡Hola! Bienvenido a *PRO CAR GROUP* 🚗\n\n🏆 *Sorteo:* "
-          f"{sorteo['titulo']}\n📅 *Fecha:* 21 de abril, 10:00 p.m.\n💵 *Valor del"
-          f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
-          " reservar hoy?\n*(Responde únicamente con el número, ej: '2')*",
+      url_flyer = request.host_url.rstrip("/") + url_for(
+          "static", filename="flyer_sorteo.png"
       )
 
-    # PASO 2: Recibir cantidad y mostrar datos bancarios
+      caption = (
+          f"¡Hola! Bienvenido a *VIFRAN GROUP S.A.* 🍀\nTu suerte, nuestro"
+          f" compromiso.\n\n🏆 *Sorteo:* {sorteo['titulo']}\n💵 *Valor del"
+          f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
+          " reservar?\n*(Responde únicamente con el número, ej: '2')*"
+      )
+
+      enviar_imagen_whatsapp(telefono, url_flyer, caption)
+
+    # PASO 2: Recibir cantidad y enviar datos para transferencia
     elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
       cantidad = int(mensaje)
       sesion["datos"]["cantidad"] = cantidad
@@ -148,30 +152,30 @@ def webhook_whatsapp():
           telefono,
           f"🎟️ *¡Números Reservados!*\n\nSorteo: {sorteo['titulo']}\nTus números:"
           f" {', '.join(numeros_asignados)}\nTotal a pagar: *{total:,}"
-          " Gs.*\n\n📂 *Datos para el pago:*\n🔸 *Alias / RUC:*"
-          " 80148499-5\n🔸 *Titular:* PRO CAR GROUP\n\n⏳ Tenés 15 minutos para"
+          " Gs.*\n\n📂 *Datos para el pago (ueno):*\n🔸 *RUC / Alias:*"
+          " 4775796-5\n🔸 *Titular:* Patricia Franco\n\n⏳ Tenés 15 minutos para"
           " enviar la foto del comprobante.",
       )
 
-    # PASO 3: Recibir comprobante (simulado)
+    # PASO 3: Validación del comprobante de pago
     elif paso == "ESPERANDO_COMPROBANTE":
       enviar_mensaje_whatsapp(
           telefono,
-          "🤖 *Analizando seguridad del comprobante.* Aguardá unos segundos...",
+          "🤖 *Analizando comprobante de pago.* Aguardá unos segundos...",
       )
 
       sesion["paso"] = "CONFIRMAR_DATOS"
-      sesion["datos"]["nombre"] = "Edgar Franco"
-      sesion["datos"]["cedula"] = "4321212"
+      sesion["datos"]["nombre"] = "Patricia Franco"
+      sesion["datos"]["cedula"] = "4775796-5"
 
       enviar_mensaje_whatsapp(
           telefono,
-          "✅ *¡Pago Válido!*\n\n¿Generamos las boletas con tus datos"
-          " guardados?\n\n👤 *Titular:* Edgar Franco\n🆔 *CI:*"
-          " 4321212\n\n👉 *Respondé SÍ para confirmar o NO para cambiar.*",
+          "✅ *¡Pago Confirmado!*\n\n¿Generamos tus boletas digitales con estos"
+          " datos?\n\n👤 *Titular:* Patricia Franco\n🆔 *RUC/CI:*"
+          " 4775796-5\n\n👉 *Respondé SÍ para confirmar o NO para cambiar.*",
       )
 
-    # PASO 4: Confirmación final y envío del ticket con QR
+    # PASO 4: Confirmación final, registro y emisión del ticket con QR
     elif paso == "CONFIRMAR_DATOS" and "si" in mensaje_lower:
       enviar_mensaje_whatsapp(
           telefono,
@@ -208,10 +212,9 @@ def webhook_whatsapp():
       for num_str in numeros:
         url_imagen_ticket = f"{request.host_url.rstrip('/')}/api/ticket-imagen/{int(num_str)}"
         caption = (
-            f"✨ *¡Venta Completada!*\n\nCLIENTE: {nombre}\nCI:"
-            f" {cedula}\nEDICION: {sorteo['titulo']}\nA: Gs."
-            f" {sorteo['precio']:,}\nNRO: #{num_str}\n\n🍀 *¡Muchísima suerte para"
-            " PRO CAR GROUP!*"
+            f"✨ *¡Venta Completada - VIFRAN GROUP S.A.!*\n\nCLIENTE:"
+            f" {nombre}\nRUC/CI: {cedula}\nEDICION: {sorteo['titulo']}\nA: Gs."
+            f" {sorteo['precio']:,}\nNRO: #{num_str}\n\n🍀 *¡Muchísima suerte!*"
         )
         enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
 
@@ -232,7 +235,7 @@ def obtener_ticket_imagen(boleto_id):
   if not boleto:
     return "Boleto no encontrado", 404
 
-  sorteo_titulo = "S10 Más exclusiva del Py"
+  sorteo_titulo = "Sorteo de 4 iPhones"
   for s in sorteos_db:
     if s["id"] == boleto["sorteo_id"]:
       sorteo_titulo = s["titulo"]
@@ -253,7 +256,7 @@ def obtener_ticket_imagen(boleto_id):
 
   d.text(
       (ancho / 2, 25),
-      "PRO CAR GROUP",
+      "VIFRAN GROUP S.A.",
       fill="black",
       anchor="mm",
       font=font_titulo,
@@ -265,7 +268,7 @@ def obtener_ticket_imagen(boleto_id):
   )
   d.text(
       (20, 90),
-      f"CI: {boleto['cedula']} | TEL: {boleto['telefono']}",
+      f"RUC/CI: {boleto['cedula']} | TEL: {boleto['telefono']}",
       fill="black",
       font=font_texto,
   )
@@ -300,7 +303,7 @@ def obtener_ticket_imagen(boleto_id):
 
 
 # ==========================================
-# RUTAS DE IMPRESIÓN WEB AUTOMÁTICA (ARIEL)
+# RUTAS DE IMPRESIÓN WEB AUTOMÁTICA
 # ==========================================
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
@@ -322,7 +325,7 @@ def obtener_pendientes_impresion():
 
       pendientes.append({
           "id": b["lote_id"],
-          "sorteo_titulo": "S10 Más exclusiva del Py",
+          "sorteo_titulo": "Sorteo de 4 iPhones",
           "nombre": b["nombre"],
           "cedula": b["cedula"],
           "telefono": b["telefono"],
