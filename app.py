@@ -92,7 +92,6 @@ def webhook_whatsapp():
 
     telefono = chat_id.split("@")[0] if "@" in chat_id else str(chat_id)
 
-    # Identificar si el usuario envió una imagen (comprobante)
     tipo_mensaje = messageData.get("typeMessage", "")
     es_imagen = (
         "fileMessageData" in messageData
@@ -144,7 +143,7 @@ def webhook_whatsapp():
 
       enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
-    # PASO 2: Recibir cantidad y enviar datos para transferencia
+    # PASO 2: Recibir cantidad, reservar números y pedir comprobante
     elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
       cantidad = int(mensaje)
       sesion["datos"]["cantidad"] = cantidad
@@ -157,45 +156,36 @@ def webhook_whatsapp():
       ]
       sesion["datos"]["numeros"] = numeros_asignados
 
-      sesion["paso"] = "ESPERANDO_COMPROBANTE"
+      sesion["paso"] = "ESPERANDO_DATOS_CLIENTE"
       enviar_mensaje_whatsapp(
           telefono,
           f"🎟️ *¡Números Reservados!*\n\nSorteo: {sorteo['titulo']}\nTus números:"
           f" {', '.join(numeros_asignados)}\nTotal a pagar: *{total:,}"
           " Gs.*\n\n📂 *Datos para el pago (ueno):*\n🔸 *RUC / Alias:*"
-          " 4775796-5\n🔸 *Titular:* Patricia Franco\n\n⏳ Tenés 15 minutos para"
-          " enviar la foto del comprobante.",
+          " 4775796-5\n🔸 *Titular:* Patricia Franco\n\n📝 Por favor, escribe tu"
+          " *Nombre completo* y tu *Cédula/RUC* separados por una coma (Ej: Juan"
+          " Pérez, 1234567).",
       )
 
-    # PASO 3: Validación del comprobante (detecta la foto y avanza)
-    elif paso == "ESPERANDO_COMPROBANTE" and (
-        es_imagen or "comprobante" in mensaje_lower or len(mensaje_lower) > 0
-    ):
+    # PASO 3: Recibir Nombre y Cédula del cliente
+    elif paso == "ESPERANDO_DATOS_CLIENTE" and "," in mensaje:
+      partes = mensaje.split(",")
+      nombre_cliente = partes[0].strip()
+      cedula_cliente = partes[1].strip()
+
+      sesion["datos"]["nombre"] = nombre_cliente
+      sesion["datos"]["cedula"] = cedula_cliente
+
+      sesion["paso"] = "ESPERANDO_COMPROBANTE"
       enviar_mensaje_whatsapp(
           telefono,
-          "🤖 *Analizando comprobante de pago.* Aguardá unos segundos...",
+          f"✅ Datos guardados:\n👤 *Nombre:* {nombre_cliente}\n🆔"
+          f" *CI/RUC:* {cedula_cliente}\n\n📸 Ahora, por favor **enviá la foto"
+          " del comprobante de pago** para que el equipo lo verifique.",
       )
 
-      sesion["paso"] = "CONFIRMAR_DATOS"
-      sesion["datos"]["nombre"] = "Patricia Franco"
-      sesion["datos"]["cedula"] = "4775796-5"
-
-      enviar_mensaje_whatsapp(
-          telefono,
-          "✅ *¡Pago Confirmado!*\n\n¿Generamos tus boletas digitales con estos"
-          " datos?\n\n👤 *Titular:* Patricia Franco\n🆔 *RUC/CI:*"
-          " 4775796-5\n\n👉 *Respondé SÍ para confirmar o NO para cambiar.*",
-      )
-
-    # PASO 4: Confirmación final, registro y emisión del ticket con QR
-    elif paso == "CONFIRMAR_DATOS" and (
-        "si" in mensaje_lower or "sí" in mensaje_lower
-    ):
-      enviar_mensaje_whatsapp(
-          telefono,
-          "🔄 Registrando tu compra y generando boletas. Por favor aguardá...",
-      )
-
+    # PASO 4: Recibir comprobante (Foto), guardar como PENDIENTE y avisar al admin
+    elif paso == "ESPERANDO_COMPROBANTE" and es_imagen:
       sorteo = sorteos_db[0]
       numeros = sesion["datos"]["numeros"]
       nombre = sesion["datos"]["nombre"]
@@ -216,22 +206,21 @@ def webhook_whatsapp():
             "telefono": telefono_cliente,
             "cedula": cedula,
             "cantidad_lote": len(numeros),
-            "estado": "Aprobado",
+            "estado": "Pendiente",  # Queda pendiente hasta que el admin apruebe
             "impreso": False,
         }
         boletos_db.append(nuevo_boleto)
 
       contador_boletos_por_sorteo[sorteo["id"]] += len(numeros)
 
-      for num_str in numeros:
-        url_imagen_ticket = f"{request.host_url.rstrip('/')}/api/ticket-imagen/{int(num_str)}"
-        caption = (
-            f"✨ *¡Venta Completada - VIFRAN GROUP S.A.!*\n\nCLIENTE:"
-            f" {nombre}\nRUC/CI: {cedula}\nEDICION: {sorteo['titulo']}\nA: Gs."
-            f" {sorteo['precio']:,}\nNRO: #{num_str}\n\n🍀 *¡Muchísima suerte!*"
-        )
-        enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
+      enviar_mensaje_whatsapp(
+          telefono,
+          "🔍 *¡Comprobante recibido con éxito!*\n\nUn administrador de VIFRAN"
+          " GROUP S.A. verificará tu pago y te enviará tus boletos y códigos"
+          " QR en breve. ¡Muchas gracias!",
+      )
 
+      # Reiniciar sesión para futuros mensajes
       sesion["paso"] = "INICIO"
 
   except Exception as e:
@@ -314,6 +303,58 @@ def obtener_ticket_imagen(boleto_id):
   img.save(output, format="PNG")
   output.seek(0)
   return send_file(output, mimetype="image/png")
+
+
+# ==========================================
+# API DE ADMINISTRACIÓN (PANEL ADMIN)
+# ==========================================
+def verificar_admin(data):
+  usuario = data.get("usuario")
+  password = data.get("password")
+  if usuario in ADMIN_USERS and ADMIN_USERS[usuario] == password:
+    return True
+  return False
+
+
+@app.route("/api/admin/datos", methods=["POST"])
+def admin_datos():
+  data = request.json
+  if not verificar_admin(data):
+    return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+  return jsonify({"sorteos": sorteos_db, "boletos": boletos_db})
+
+
+@app.route("/api/admin/aprobar/<int:boleto_id>", methods=["POST"])
+def admin_aprobar(boleto_id):
+  data = request.json
+  if not verificar_admin(data):
+    return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+
+  sorteo_id = data.get("sorteo_id")
+
+  for b in boletos_db:
+    if b["id"] == boleto_id and b["sorteo_id"] == sorteo_id:
+      b["estado"] = "Aprobado"
+
+      # Enviar boleto digital con QR por WhatsApp automáticamente al cliente
+      telefono = b["telefono"]
+      nombre = b["nombre"]
+      cedula = b["cedula"]
+      sorteo = sorteos_db[0]
+      url_imagen_ticket = (
+          f"{request.host_url.rstrip('/')}/api/ticket-imagen/{b['id']}"
+      )
+      caption = (
+          f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {nombre}\nRUC/CI:"
+          f" {cedula}\nEDICION: {sorteo['titulo']}\nA: Gs."
+          f" {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀"
+          f" *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
+      )
+      enviar_imagen_whatsapp(telefono, url_imagen_ticket, caption)
+
+      return jsonify({"mensaje": f"Boleto #{boleto_id} aprobado y enviado."})
+
+  return jsonify({"error": "Boleto no encontrado"}), 404
 
 
 # ==========================================
