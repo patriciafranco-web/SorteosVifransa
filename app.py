@@ -97,6 +97,11 @@ def obtener_sorteos():
 def comprar():
   global lote_contador
   data = request.json
+  
+  # BLOQUEO DE SEGURIDAD: Evita que el frontend antiguo duplique el lote enviando el comprobante por esta ruta.
+  if data.get("imagen_comprobante"):
+      return jsonify({"error": "La reserva no debe incluir el comprobante aquí. Por favor, recargue la página (Ctrl+F5) y vuelva a intentarlo."}), 400
+
   sorteo_id = int(data.get("sorteo_id", 1))
   nombre = data.get("nombre")
   telefono = data.get("telefono")
@@ -269,7 +274,7 @@ def webhook_whatsapp():
           f"¡Hola! Bienvenido a *VIFRAN GROUP S.A.* 🍀\nTu suerte, nuestro"
           f" compromiso.\n\n🏆 *Sorteo:* {sorteo['titulo']}\n💵 *Valor del"
           f" ticket:* Gs. {sorteo['precio']:,}\n\n¿Cuántos boletos te gustaría"
-          " reservar?\n*(Responde únicamente con cái número, ej: '2')*"
+          " reservar?\n*(Responde únicamente con el número, ej: '2')*"
       )
       enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
