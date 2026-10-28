@@ -8,7 +8,6 @@
 </head>
 <body class="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 md:p-6 font-sans">
     
-    <!-- ENCABEZADO PRINCIPAL -->
     <header class="text-center mb-6 relative w-full max-w-5xl">
         <a href="/admin" class="absolute right-0 top-0 bg-slate-800 hover:bg-slate-700 text-xs font-bold px-3 py-1.5 rounded-xl transition text-amber-400 border border-slate-700 shadow">
             🔒 Admin
@@ -17,11 +16,10 @@
         <p class="text-xs md:text-sm text-slate-400 italic mt-1">"Tu suerte, nuestro compromiso"</p>
     </header>
 
-    <!-- CONTENEDOR PRINCIPAL DE DOS COLUMNAS -->
     <div class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        <!-- COLUMNA IZQUIERDA: FLYER Y DETALLES (5 Columnas) -->
-        <div class="lg:col-span-5 bg-slate-850 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+        <!-- COLUMNA IZQUIERDA: FLYER -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
             <div class="flex items-center justify-center space-x-2 text-amber-400 font-bold text-sm">
                 <span>📱</span>
                 <span id="tituloSorteoHeader">Sorteo de 4 iPhones</span>
@@ -36,7 +34,7 @@
             </div>
         </div>
 
-        <!-- COLUMNA DERECHA: FORMULARIO DE COMPRA (7 Columnas) -->
+        <!-- COLUMNA DERECHA: FORMULARIO -->
         <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-5">
             <div class="border-b border-slate-800 pb-3">
                 <h2 class="text-lg font-black text-amber-400 flex items-center space-x-2">
@@ -47,8 +45,8 @@
             </div>
 
             <form id="formCompra" class="space-y-4">
-                <!-- Selector oculto o integrado de sorteo -->
                 <input type="hidden" id="selectSorteo" value="1">
+                <input type="hidden" id="loteActualId" value="">
 
                 <div>
                     <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Nombre Completo</label>
@@ -70,7 +68,7 @@
                     <input type="number" id="cantidad" min="1" value="1" onchange="actualizarTotal()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-400">
                 </div>
 
-                <!-- SELECCIÓN DE MÉTODO DE PAGO CON BOTONES TIPO TABS -->
+                <!-- SELECCIÓN DE MÉTODO DE PAGO -->
                 <div>
                     <label class="block text-xs uppercase font-semibold text-slate-400 mb-2">Selecciona el Método de Pago</label>
                     <div class="grid grid-cols-2 gap-3">
@@ -85,7 +83,15 @@
                     </div>
                 </div>
 
-                <!-- BLOQUE OPCIÓN BINANCE PAY -->
+                <!-- DATOS DE PAGO (TRANSFERENCIA UENO O CRIPTO) -->
+                <div id="infoTransferencia" class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-2">
+                    <p class="font-bold text-amber-400">📂 Datos para la Transferencia (ueno):</p>
+                    <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-emerald-400 space-y-1">
+                        <p>🔸 RUC / Alias: <span class="text-white">4775796-5</span></p>
+                        <p>🔸 Titular: <span class="text-white">Patricia Franco</span></p>
+                    </div>
+                </div>
+
                 <div id="infoCrypto" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 space-y-3">
                     <p class="font-bold text-amber-400">🪙 Pago vía Binance Pay (USDT):</p>
                     <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
@@ -95,8 +101,14 @@
                     </div>
                     <div>
                         <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Ingresa el Nro. de Orden o ID de Transacción:</label>
-                        <input type="text" id="hashCrypto" placeholder="Ej: 8493029102" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white">
+                        <input type="text" id="hashCrypto" placeholder="Ej: 8493029102" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
                     </div>
+                </div>
+
+                <!-- CAMPO PARA SUBIR COMPROBANTE -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <label class="block text-xs uppercase font-semibold text-amber-400 mb-1">📸 Adjuntar Comprobante de Pago (Imagen)</label>
+                    <input type="file" id="inputComprobante" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-amber-400 hover:file:bg-slate-700 cursor-pointer">
                 </div>
 
                 <!-- TOTAL A PAGAR -->
@@ -106,26 +118,13 @@
                 </div>
 
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-xl transition shadow-lg text-sm md:text-base tracking-wide">
-                    Reservar Boletos y Ver Datos de Pago
+                    Confirmar y Enviar Comprobante
                 </button>
             </form>
 
             <div id="resultadoCompra" class="mt-4 text-center text-sm font-semibold"></div>
         </div>
 
-    </div>
-
-    <!-- SECCIÓN INFERIOR: CONSULTAR MIS BOLETOS -->
-    <div class="w-full max-w-5xl mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-        <h2 class="text-md font-bold text-amber-400 flex items-center space-x-2">
-            <span>🔍</span>
-            <span>Consultar mis Boletos</span>
-        </h2>
-        <div class="flex gap-2">
-            <input type="text" id="terminoConsulta" placeholder="Ingresa tu Cédula o Teléfono" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-            <button onclick="consultarBoletos()" class="bg-slate-800 hover:bg-slate-700 font-bold px-6 py-3 rounded-xl transition text-sm text-amber-300 border border-slate-700 shadow">Buscar</button>
-        </div>
-        <div id="resultadoConsulta" class="space-y-2 mt-4 text-sm"></div>
     </div>
 
     <script>
@@ -154,15 +153,18 @@
             metodoSeleccionado = metodo;
             const btnTransf = document.getElementById('btnTransferencia');
             const btnCripto = document.getElementById('btnCripto');
+            const infoTransf = document.getElementById('infoTransferencia');
             const infoCrypto = document.getElementById('infoCrypto');
 
             if (metodo === 'Transferencia Directa') {
                 btnTransf.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-amber-500 text-slate-950 border-amber-400 shadow-lg";
                 btnCripto.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800";
+                infoTransf.classList.remove('hidden');
                 infoCrypto.classList.add('hidden');
             } else {
                 btnCripto.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-amber-500 text-slate-950 border-amber-400 shadow-lg";
                 btnTransf.className = "p-3 rounded-xl border font-bold text-xs transition flex flex-col items-center justify-center space-y-1 bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800";
+                infoTransf.classList.add('hidden');
                 infoCrypto.classList.remove('hidden');
                 actualizarTotal();
             }
@@ -182,9 +184,28 @@
 
         document.getElementById('formCompra').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const resDiv = document.getElementById('resultadoCompra');
+            
+            const fileInput = document.getElementById('inputComprobante');
+            let imagenBase64 = "";
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                await new Promise((resolve) => { reader.onload = resolve; });
+                imagenBase64 = reader.result;
+            } else {
+                alert("Por favor adjunta la foto de tu comprobante de pago.");
+                return;
+            }
+
             const detallePagoFinal = metodoSeleccionado.includes('Cripto') 
                 ? document.getElementById('hashCrypto').value 
                 : 'Transferencia Directa';
+
+            resDiv.className = "mt-4 text-center text-sm font-semibold text-amber-400";
+            resDiv.innerText = "Registrando y subiendo comprobante...";
 
             const res = await fetch('/api/comprar', {
                 method: 'POST',
@@ -196,14 +217,15 @@
                     telefono: document.getElementById('telefono').value,
                     cantidad: parseInt(document.getElementById('cantidad').value),
                     metodo_pago: metodoSeleccionado,
-                    detalle_pago: detallePagoFinal
+                    detalle_pago: detallePagoFinal,
+                    imagen_comprobante: imagenBase64
                 })
             });
             const data = await res.json();
-            const resDiv = document.getElementById('resultadoCompra');
+            
             if(res.ok) {
                 resDiv.className = "mt-4 text-center text-sm font-semibold text-emerald-400";
-                resDiv.innerText = `${data.mensaje} Números asignados: ${data.rango}`;
+                resDiv.innerText = `${data.mensaje} Números asignados: ${data.rango}. ¡Pendiente de aprobación!`;
                 document.getElementById('formCompra').reset();
                 seleccionarMetodo('Transferencia Directa');
                 actualizarTotal();
@@ -212,38 +234,6 @@
                 resDiv.innerText = data.error;
             }
         });
-
-        async function consultarBoletos() {
-            const termino = document.getElementById('terminoConsulta').value.trim();
-            const resDiv = document.getElementById('resultadoConsulta');
-            if(!termino) {
-                resDiv.innerHTML = `<p class="text-rose-400 text-xs">Ingresa una cédula o teléfono válido.</p>`;
-                return;
-            }
-
-            const res = await fetch('/api/consultar', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ termino })
-            });
-            const data = await res.json();
-            resDiv.innerHTML = '';
-
-            if(res.ok && data.encontrado) {
-                data.boletos.forEach(b => {
-                    resDiv.innerHTML += `
-                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
-                            <div>
-                                <p class="font-bold text-amber-400">Boleto #${String(b.id).padStart(5, '0')} (${b.sorteo_titulo})</p>
-                                <p class="text-slate-400">Cliente: ${b.nombre}</p>
-                            </div>
-                            <span class="px-2.5 py-1 rounded-lg font-bold ${b.estado === 'Aprobado' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">${b.estado}</span>
-                        </div>`;
-                });
-            } else {
-                resDiv.innerHTML = `<p class="text-slate-400 text-xs text-center">No se encontraron boletos con ese número.</p>`;
-            }
-        }
 
         cargarSorteos();
     </script>
