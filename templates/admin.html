@@ -33,6 +33,17 @@
             <button onclick="cerrarSesion()" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2 rounded-xl transition">Cerrar Sesión</button>
         </header>
 
+        <!-- ZONA DE PRUEBAS: BOTÓN DE LIMPIEZA -->
+        <div class="bg-slate-800 p-5 rounded-2xl shadow-xl border border-rose-500/40 flex justify-between items-center">
+            <div>
+                <h3 class="font-bold text-rose-400 text-sm">🗑️ Panel de Pruebas y Simulaciones</h3>
+                <p class="text-xs text-slate-400">Elimina todos los boletos, lotes y clientes de prueba antes de abrir las ventas oficiales.</p>
+            </div>
+            <button onclick="limpiarSistemaPruebas()" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">
+                🗑️ Limpiar Pruebas
+            </button>
+        </div>
+
         <!-- Crear Nuevo Sorteo -->
         <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
             <h2 class="text-lg font-bold mb-4 text-amber-300">➕ Crear Nuevo Sorteo / Rifa</h2>
@@ -294,6 +305,23 @@
                             </tr>`;
                     });
                 }
+            }
+        }
+
+        async function limpiarSistemaPruebas() {
+            if(!confirm("¿Estás 100% seguro de borrar todas las pruebas? Esta acción dejará el sistema en cero.")) return;
+            
+            const res = await fetch('/api/admin/limpiar-pruebas', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            const data = await res.json();
+            if(res.ok) {
+                alert(data.mensaje);
+                location.reload();
+            } else {
+                alert(data.error || "Error al limpiar el sistema");
             }
         }
 
