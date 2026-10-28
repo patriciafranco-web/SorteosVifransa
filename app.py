@@ -1,4 +1,7 @@
-from flask import Flask, jsonify, render_template, request
+import io
+from flask import Flask, jsonify, render_template, request, send_file
+from PIL import Image, ImageDraw, ImageFont
+import requests
 
 app = Flask(__name__)
 
@@ -196,12 +199,129 @@ def admin_aprobar_lote(lote_id):
     return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
 
   aprobados = 0
+  telefono_cliente = None
+
   for b in boletos_db:
     if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
       b["estado"] = "Aprobado"
       aprobados += 1
+      telefono_cliente = b["telefono"]
+
+  # Si se aprobaron boletos, enviamos automáticamente el ticket por WhatsApp al cliente
+  if aprobados > 0 and telefono_cliente:
+    boletos_lote = [b for b in boletos_db if b["lote_id"] == lote_id]
+    for boleto in boletos_lote:
+      # URL de la imagen digital del ticket con QR
+      url_imagen = (
+          f"https://sorteosvifransa.onrender.com/api/ticket-imagen/{boleto['id']}"
+      )
+      caption = (
+          f"✨ *¡Venta Completada!*\n\nTu número de boleto asignado es:"
+          f" *#{str(boleto['id']).zfill(4)}*\n\n¡Muchísima suerte! 🍀"
+      )
+      enviar_imagen_por_whatsapp(telefono_cliente, url_imagen, caption)
 
   return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
+
+
+# ==========================================
+# GENERADOR DE IMAGEN DIGITAL DE TICKET (WHATSAPP)
+# ==========================================
+@app.route("/api/ticket-imagen/<int:boleto_id>")
+def obtener_ticket_imagen(boleto_id):
+  boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
+  if not boleto:
+    return "Boleto no encontrado", 404
+
+  # Buscar el título del sorteo
+  sorteo_titulo = "Sorteo Vifran"
+  for s in sorteos_db:
+    if s["id"] == boleto["sorteo_id"]:
+      sorteo_titulo = s["titulo"]
+      break
+
+  # Crear imagen en blanco para el ticket digital (ancho 400px)
+  ancho, alto = 400, 520
+  img = Image.new("RGB", (ancho, alto), color="white")
+  d = ImageDraw.Draw(img)
+
+  try:
+    font_titulo = ImageFont.truetype("arial.ttf", 18)
+    font_texto = ImageFont.truetype("arial.ttf", 13)
+    font_grande = ImageFont.truetype("arial.ttf", 22)
+  except:
+    font_titulo = ImageFont.load_default()
+    font_texto = ImageFont.load_default()
+    font_grande = ImageFont.load_default()
+
+  # Dibujar datos en la imagen
+  d.text((ancho / 2, 20), "SORTEOS VIFRAN GROUP", fill="black", anchor="mm")
+  d.line([(20, 40), (ancho - 20, 40)], fill="black", width=1)
+
+  d.text((20, 55), f"Sorteo: {sorteo_titulo}", fill="black", font=font_texto)
+  d.text((20, 80), f"Cliente: {boleto['nombre']}", fill="black", font=font_texto)
+  d.text(
+      (20, 105),
+      f"CI: {boleto['cedula']} | Cel: {boleto['telefono']}",
+      fill="black",
+      font=font_texto,
+  )
+
+  d.line([(20, 130), (ancho - 20, 130)], fill="black", width=1)
+  d.text(
+      (ancho / 2, 155),
+      f"NRO: #{str(boleto['id']).zfill(4)}",
+      fill="black",
+      anchor="mm",
+      font=font_grande,
+  )
+  d.line([(20, 180), (ancho - 20, 180)], fill="black", width=1)
+
+  # Descargar el QR real generado por API para incluirlo en la imagen de WhatsApp
+  qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://sorteosvifransa.onrender.com/validar/{boleto['id']}"
+  try:
+    res_qr = requests.get(qr_url)
+    if res_qr.status_code == 200:
+      qr_img = Image.open(io.BytesIO(res_qr.content)).resize((130, 130))
+      img.paste(qr_img, (int((ancho - 130) / 2), 195))
+  except Exception:
+    pass
+
+  d.text(
+      (ancho / 2, 350),
+      "¡MUCHA SUERTE!",
+      fill="black",
+      anchor="mm",
+      font=font_texto,
+  )
+  d.text(
+      (ancho / 2, 375),
+      "Gracias por participar.",
+      fill="black",
+      anchor="mm",
+      font=font_texto,
+  )
+
+  output = io.BytesIO()
+  img.save(output, format="PNG")
+  output.seek(0)
+  return send_file(output, mimetype="image/png")
+
+
+def enviar_imagen_por_whatsapp(telefono, url_imagen, caption):
+  # Conecta con tu proveedor de WhatsApp (ej. Evolution API / Meta)
+  api_url = "https://tu-api-de-whatsapp.com/message/sendMedia"
+  headers = {"apikey": "TU_TOKEN_SECRETO"}
+  payload = {
+      "number": telefono,
+      "mediatype": "image",
+      "media": url_imagen,
+      "caption": caption,
+  }
+  try:
+    requests.post(api_url, json=payload, headers=headers)
+  except Exception as e:
+    print(f"Error al enviar WhatsApp: {e}")
 
 
 # ==========================================
@@ -212,8 +332,6 @@ def admin_aprobar_lote(lote_id):
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
   pendientes = []
-
-  # Agrupar boletos por lote para mandar lotes completos
   lotes_procesados = set()
 
   for b in boletos_db:
@@ -224,12 +342,10 @@ def obtener_pendientes_impresion():
     ):
       lotes_procesados.add(b["lote_id"])
 
-      # Obtener todos los números del mismo lote
       numeros_del_lote = [
           x["id"] for x in boletos_db if x["lote_id"] == b["lote_id"]
       ]
 
-      # Buscar el título y precio del sorteo
       sorteo_titulo = "Sorteo Vifran"
       precio_boleto = 10000
       for s in sorteos_db:
@@ -241,7 +357,7 @@ def obtener_pendientes_impresion():
       total_pagado = len(numeros_del_lote) * precio_boleto
 
       pendientes.append({
-          "id": b["lote_id"],  # Identificador del lote para la impresión
+          "id": b["lote_id"],
           "sorteo_id": b["sorteo_id"],
           "sorteo_titulo": sorteo_titulo,
           "nombre": b["nombre"],
