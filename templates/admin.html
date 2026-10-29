@@ -67,6 +67,18 @@
             <div id="resCrearSorteo" class="mt-4 text-center font-semibold text-sm"></div>
         </div>
 
+        <!-- CARGA MANUAL DE BOLETOS (RECUPERACIÓN) -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h3 class="text-lg font-bold text-amber-400 mb-4">➕ Carga Manual de Boletos (Recuperación)</h3>
+            <p class="text-xs text-slate-400 mb-4">Agrega aquí a los clientes anteriores que ya pagaron para sumarlos al historial y a la impresora sin enviarles mensajes por WhatsApp.</p>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input type="text" id="manual_nombre" placeholder="Nombre del Cliente" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <input type="text" id="manual_cedula" placeholder="Cédula / Teléfono" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <input type="number" id="manual_cantidad" placeholder="Cantidad de boletos" value="1" min="1" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <button onclick="enviarCargaManual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold p-3 rounded-xl transition text-sm">Agregar a la Lista</button>
+            </div>
+        </div>
+
         <!-- Estadísticas y Gráfico -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
@@ -161,6 +173,43 @@
                 document.getElementById('errorLogin').innerText = "Usuario o contraseña incorrectos.";
             }
         });
+
+        // Función de Carga Manual
+        async function enviarCargaManual() {
+            const nombre = document.getElementById('manual_nombre').value.trim();
+            const cedula = document.getElementById('manual_cedula').value.trim();
+            const cantidad = parseInt(document.getElementById('manual_cantidad').value) || 1;
+
+            if (!nombre) {
+                alert("Por favor ingresa el nombre del cliente.");
+                return;
+            }
+
+            const res = await fetch('/api/admin/agregar-manual', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    usuario: currentUser,
+                    password: currentPass,
+                    sorteo_id: 1,
+                    nombre: nombre,
+                    cedula: cedula || "S/N",
+                    telefono: "0000000000",
+                    cantidad: cantidad
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.mensaje);
+                document.getElementById('manual_nombre').value = '';
+                document.getElementById('manual_cedula').value = '';
+                document.getElementById('manual_cantidad').value = '1';
+                cargarDatosAdmin();
+            } else {
+                alert("Error: " + (data.error || "No se pudo agregar"));
+            }
+        }
 
         // Funciones del Visor de Imágenes (Modal)
         function abrirModal(src) {
@@ -345,7 +394,7 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
-                    alert("¡Orden de reimpresión enviada con éxito a la impresora de Ariel!");
+                    alert("¡Orden de reimpresión enviada con éxito a la impresora!");
                     cargarDatosAdmin();
                 } else {
                     alert("Error: " + (data.error || "No se pudo reimprimir"));
