@@ -91,7 +91,7 @@ sorteos_db = [{
 
 boletos_db = []
 clientes_db = {}
-contador_boletos_por_sorteo = {1: 66}  # <--- Arranca estrictamente en el 66
+contador_boletos_por_sorteo = {1: 76}  # <--- Las ventas nuevas por WhatsApp arrancarán desde el 76 en adelante
 lote_contador = 1
 lotes_pendientes = {}    
 numeros_liberados = {}  
@@ -126,7 +126,7 @@ def cargar_datos_disco():
                 sorteos_db = datos.get("sorteos", sorteos_db)
                 boletos_db = datos.get("boletos", boletos_db)
                 clientes_db = datos.get("clientes", {})
-                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 66}).items()}
+                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 76}).items()}
                 lote_contador = datos.get("lote_contador", 1)
                 numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
         except Exception as e:
@@ -192,7 +192,7 @@ def comprar():
                 numeros_liberados[sorteo_id].sort()
                 num_boleto = numeros_liberados[sorteo_id].pop(0)
             else:
-                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 66)
+                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 76)
                 contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
             nuevos_boletos_ids.append(num_boleto)
 
@@ -382,7 +382,7 @@ def webhook_whatsapp():
                         numeros_liberados[sorteo["id"]].sort()
                         num_boleto = numeros_liberados[sorteo["id"]].pop(0)
                     else:
-                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 66)
+                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 76)
                         contador_boletos_por_sorteo[sorteo["id"]] = num_boleto + 1
                     nuevos_boletos_ids.append(num_boleto)
 
@@ -567,7 +567,7 @@ def admin_crear_sorteo():
 def admin_finalizar_sorteo(sorteo_id):
     data = request.json
     if not verificar_admin(data): 
-        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+        return jsonify({"error": "Usuario or contraseña incorrectos"}), 401
     
     with bloqueo_compra:
         encontrado = False
@@ -583,7 +583,7 @@ def admin_finalizar_sorteo(sorteo_id):
         else:
             return jsonify({"error": "Sorteo no encontrado"}), 404
 
-# NUEVA RUTA: AGREGAR BOLETOS MANUALMENTE DESDE EL ADMIN (Sin enviar WhatsApp)
+# RUTA: AGREGAR BOLETOS MANUALMENTE CON INICIO PERSONALIZADO
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -595,6 +595,7 @@ def admin_agregar_manual():
     telefono = data.get("telefono", "0000000000")
     cedula = data.get("cedula", "0000000")
     cantidad = int(data.get("cantidad", 1))
+    inicio_personalizado = data.get("inicio_personalizado")
 
     if not nombre or cantidad < 1:
         return jsonify({"error": "El nombre y la cantidad son obligatorios."}), 400
@@ -608,14 +609,21 @@ def admin_agregar_manual():
             numeros_liberados[sorteo_id] = []
 
         nuevos_boletos_ids = []
-        for _ in range(cantidad):
-            if numeros_liberados[sorteo_id]:
-                numeros_liberados[sorteo_id].sort()
-                num_boleto = numeros_liberados[sorteo_id].pop(0)
-            else:
-                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 66)
-                contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
-            nuevos_boletos_ids.append(num_boleto)
+        
+        if inicio_personalizado is not None and str(inicio_personalizado).strip() != "":
+            num_actual = int(inicio_personalizado)
+            for _ in range(cantidad):
+                nuevos_boletos_ids.append(num_actual)
+                num_actual += 1
+        else:
+            for _ in range(cantidad):
+                if numeros_liberados[sorteo_id]:
+                    numeros_liberados[sorteo_id].sort()
+                    num_boleto = numeros_liberados[sorteo_id].pop(0)
+                else:
+                    num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 76)
+                    contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
+                nuevos_boletos_ids.append(num_boleto)
 
         for num_boleto in nuevos_boletos_ids:
             nuevo_boleto = {
@@ -629,14 +637,14 @@ def admin_agregar_manual():
                 "imagen_comprobante": "Carga Manual",
                 "metodo_pago": "Manual (Recuperación)",
                 "detalle_pago": "Carga interna por reinicio",
-                "estado": "Aprobado",  # Ya nace aprobado y listo para imprimir
+                "estado": "Aprobado", 
                 "impreso": False,
             }
             boletos_db.append(nuevo_boleto)
 
         guardar_datos_disco()
 
-    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente con éxito para {nombre}!"}), 200
+    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (desde el #{nuevos_boletos_ids[0]}) para {nombre}!"}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
