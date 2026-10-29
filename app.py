@@ -567,7 +567,7 @@ def admin_crear_sorteo():
 def admin_finalizar_sorteo(sorteo_id):
     data = request.json
     if not verificar_admin(data): 
-        return jsonify({"error": "Usuario or contraseña incorrectos"}), 401
+        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
     
     with bloqueo_compra:
         encontrado = False
@@ -583,7 +583,7 @@ def admin_finalizar_sorteo(sorteo_id):
         else:
             return jsonify({"error": "Sorteo no encontrado"}), 404
 
-# RUTA: AGREGAR BOLETOS MANUALMENTE CON INICIO PERSONALIZADO
+# RUTA: AGREGAR BOLETOS MANUALMENTE CON INICIO PERSONALIZADO Y MARCADOS COMO IMPRESOS
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -638,7 +638,7 @@ def admin_agregar_manual():
                 "metodo_pago": "Manual (Recuperación)",
                 "detalle_pago": "Carga interna por reinicio",
                 "estado": "Aprobado", 
-                "impreso": False,
+                "impreso": True,  # <--- YA NACEN MARCADOS COMO IMPRESOS PARA EVITAR QUE VAYAN A LA COLA DE IMPRESIÓN
             }
             boletos_db.append(nuevo_boleto)
 
