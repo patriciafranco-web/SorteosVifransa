@@ -67,15 +67,16 @@
             <div id="resCrearSorteo" class="mt-4 text-center font-semibold text-sm"></div>
         </div>
 
-        <!-- CARGA MANUAL DE BOLETOS (RECUPERACIÓN) -->
+        <!-- CARGA MANUAL DE BOLETOS CON NÚMERO INICIAL -->
         <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
             <h3 class="text-lg font-bold text-amber-400 mb-4">➕ Carga Manual de Boletos (Recuperación)</h3>
-            <p class="text-xs text-slate-400 mb-4">Agrega aquí a los clientes anteriores que ya pagaron para sumarlos al historial y a la impresora sin enviarles mensajes por WhatsApp.</p>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <p class="text-xs text-slate-400 mb-4">Ingresa el número inicial exacto (ej: 1) para registrar a tus clientes anteriores en orden sin enviarles WhatsApp.</p>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <input type="text" id="manual_nombre" placeholder="Nombre del Cliente" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
                 <input type="text" id="manual_cedula" placeholder="Cédula / Teléfono" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                <input type="number" id="manual_cantidad" placeholder="Cantidad de boletos" value="1" min="1" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                <button onclick="enviarCargaManual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold p-3 rounded-xl transition text-sm">Agregar a la Lista</button>
+                <input type="number" id="manual_inicio" placeholder="Nro. Inicial (Ej: 1)" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <input type="number" id="manual_cantidad" placeholder="Cantidad" value="1" min="1" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <button onclick="enviarCargaManual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold p-3 rounded-xl transition text-sm">Agregar</button>
             </div>
         </div>
 
@@ -174,10 +175,11 @@
             }
         });
 
-        // Función de Carga Manual
+        // Función de Carga Manual con Número Inicial
         async function enviarCargaManual() {
             const nombre = document.getElementById('manual_nombre').value.trim();
             const cedula = document.getElementById('manual_cedula').value.trim();
+            const inicio_personalizado = document.getElementById('manual_inicio').value.trim();
             const cantidad = parseInt(document.getElementById('manual_cantidad').value) || 1;
 
             if (!nombre) {
@@ -195,7 +197,8 @@
                     nombre: nombre,
                     cedula: cedula || "S/N",
                     telefono: "0000000000",
-                    cantidad: cantidad
+                    cantidad: cantidad,
+                    inicio_personalizado: inicio_personalizado
                 })
             });
 
@@ -204,6 +207,7 @@
                 alert(data.mensaje);
                 document.getElementById('manual_nombre').value = '';
                 document.getElementById('manual_cedula').value = '';
+                document.getElementById('manual_inicio').value = '';
                 document.getElementById('manual_cantidad').value = '1';
                 cargarDatosAdmin();
             } else {
