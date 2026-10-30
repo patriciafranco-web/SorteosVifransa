@@ -76,9 +76,16 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 
 
 # ==========================================
-# BASE DE DATOS Y PERSISTENCIA EN DISCO (/varidata)
+# BASE DE DATOS Y PERSISTENCIA BLINDADA (/varidata)
 # ==========================================
-ARCHIVO_DATOS = "/varidata/datos_vifran.json" if os.path.exists("/varidata") else "datos_vifran.json"
+CARPETA_DATOS = "/varidata" if os.path.exists("/varidata") else "."
+if not os.path.exists(CARPETA_DATOS) and CARPETA_DATOS != ".":
+    try:
+        os.makedirs(CARPETA_DATOS, exist_ok=True)
+    except:
+        CARPETA_DATOS = "."
+
+ARCHIVO_DATOS = os.path.join(CARPETA_DATOS, "datos_vifran.json")
 
 sorteos_db = [{
     "id": 1,
@@ -91,7 +98,7 @@ sorteos_db = [{
 
 boletos_db = []
 clientes_db = {}
-contador_boletos_por_sorteo = {1: 76}  # <--- Las ventas nuevas por WhatsApp arrancarán desde el 76 en adelante
+contador_boletos_por_sorteo = {1: 110}  # Ajustado para que las ventas nuevas arranquen desde el 110
 lote_contador = 1
 lotes_pendientes = {}    
 numeros_liberados = {}  
@@ -115,7 +122,7 @@ def guardar_datos_disco():
         with open(ARCHIVO_DATOS, "w", encoding="utf-8") as f:
             json.dump(datos, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        print(f"❌ Error guardando en disco: {e}")
+        print(f"❌ Error guardando en disco seguro: {e}")
 
 def cargar_datos_disco():
     global sorteos_db, boletos_db, clientes_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados
@@ -126,9 +133,10 @@ def cargar_datos_disco():
                 sorteos_db = datos.get("sorteos", sorteos_db)
                 boletos_db = datos.get("boletos", boletos_db)
                 clientes_db = datos.get("clientes", {})
-                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 76}).items()}
+                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 110}).items()}
                 lote_contador = datos.get("lote_contador", 1)
                 numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
+                print("✅ Datos cargados correctamente desde el disco persistente.")
         except Exception as e:
             print(f"❌ Error leyendo datos del disco: {e}")
 
@@ -192,7 +200,7 @@ def comprar():
                 numeros_liberados[sorteo_id].sort()
                 num_boleto = numeros_liberados[sorteo_id].pop(0)
             else:
-                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 76)
+                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 110)
                 contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
             nuevos_boletos_ids.append(num_boleto)
 
@@ -382,7 +390,7 @@ def webhook_whatsapp():
                         numeros_liberados[sorteo["id"]].sort()
                         num_boleto = numeros_liberados[sorteo["id"]].pop(0)
                     else:
-                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 76)
+                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 110)
                         contador_boletos_por_sorteo[sorteo["id"]] = num_boleto + 1
                     nuevos_boletos_ids.append(num_boleto)
 
@@ -583,7 +591,7 @@ def admin_finalizar_sorteo(sorteo_id):
         else:
             return jsonify({"error": "Sorteo no encontrado"}), 404
 
-# RUTA: AGREGAR BOLETOS MANUALMENTE CON INICIO PERSONALIZADO Y MARCADOS COMO IMPRESOS
+# RUTA: AGREGAR BOLETOS MANUALMENTE HASTA EL 109 (MARCADOS COMO IMPRESOS PARA QUE NO SALGAN EN COLA)
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -621,7 +629,7 @@ def admin_agregar_manual():
                     numeros_liberados[sorteo_id].sort()
                     num_boleto = numeros_liberados[sorteo_id].pop(0)
                 else:
-                    num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 76)
+                    num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 110)
                     contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
                 nuevos_boletos_ids.append(num_boleto)
 
@@ -636,9 +644,9 @@ def admin_agregar_manual():
                 "cantidad_lote": cantidad,
                 "imagen_comprobante": "Carga Manual",
                 "metodo_pago": "Manual (Recuperación)",
-                "detalle_pago": "Carga interna por reinicio",
+                "detalle_pago": "Carga interna",
                 "estado": "Aprobado", 
-                "impreso": True,  # <--- YA NACEN MARCADOS COMO IMPRESOS PARA EVITAR QUE VAYAN A LA COLA DE IMPRESIÓN
+                "impreso": True,  # Ya nacen marcados como impresos para no ir a la cola
             }
             boletos_db.append(nuevo_boleto)
 
@@ -665,6 +673,42 @@ def admin_aprobar_lote(lote_id):
             guardar_datos_disco()
             return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
     return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
+
+
+# ==========================================
+# NUEVO: RUTA PARA ELIMINAR / LIBERAR LOTE PENDIENTE
+# ==========================================
+@app.route("/api/admin/eliminar-lote/<int:lote_id>", methods=["POST"])
+def admin_eliminar_lote(lote_id):
+    data = request.json or {}
+    if not verificar_admin(data): 
+        return jsonify({"error": "No autorizado"}), 401
+    
+    with bloqueo_compra:
+        global boletos_db, numeros_liberados, lotes_pendientes
+        
+        boletos_a_eliminar = [b for b in boletos_db if b["lote_id"] == lote_id and b["estado"] == "Pendiente"]
+        
+        if not boletos_a_eliminar:
+            return jsonify({"error": "Lote no encontrado o ya fue aprobado."}), 404
+        
+        sorteo_id = boletos_a_eliminar[0]["sorteo_id"]
+        
+        if sorteo_id not in numeros_liberados:
+            numeros_liberados[sorteo_id] = []
+            
+        for b in boletos_a_eliminar:
+            numeros_liberados[sorteo_id].append(b["id"])
+            
+        boletos_db = [b for b in boletos_db if not (b["lote_id"] == lote_id and b["estado"] == "Pendiente")]
+        
+        if lote_id in lotes_pendientes:
+            del lotes_pendientes[lote_id]
+            
+        guardar_datos_disco()
+        
+    return jsonify({"mensaje": f"¡Lote #{lote_id} eliminado y números liberados con éxito!"}), 200
+
 
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
