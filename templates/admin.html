@@ -320,7 +320,10 @@
                                         <p class="text-xs text-slate-400">Tel: ${l.telefono} | Cantidad: ${l.cantidad} boletos</p>
                                         <p class="text-xs text-emerald-400 mt-1">Asignados: #${l.boletos[0]} al #${l.boletos[l.boletos.length-1]}</p>
                                     </div>
-                                    <button onclick="aprobarLote(${l.lote_id})" class="bg-emerald-600 hover:bg-emerald-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">Aprobar e Imprimir</button>
+                                    <div class="flex space-x-2">
+                                        <button onclick="aprobarLote(${l.lote_id})" class="bg-emerald-600 hover:bg-emerald-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">Aprobar e Imprimir</button>
+                                        <button onclick="eliminarLotePendiente(${l.lote_id})" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">Liberar / Eliminar</button>
+                                    </div>
                                 </div>
                                 ${comprobanteHtml}
                             </div>`;
@@ -357,6 +360,18 @@
                     });
                 }
             }
+        }
+
+        async function eliminarLotePendiente(loteId) {
+            if(!confirm("¿Estás seguro de liberar este lote? Los boletos volverán a estar disponibles.")) return;
+            const res = await fetch(`/api/admin/eliminar-lote/${loteId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            const data = await res.json();
+            if(res.ok) { alert(data.mensaje); cargarDatosAdmin(); }
+            else { alert(data.error || "Error al eliminar lote"); }
         }
 
         async function limpiarSistemaPruebas() {
