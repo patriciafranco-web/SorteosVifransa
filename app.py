@@ -91,7 +91,7 @@ sorteos_db = [{
 
 boletos_db = []
 clientes_db = {}
-contador_boletos_por_sorteo = {1: 76}
+contador_boletos_por_sorteo = {1: 76}  # <--- Las ventas nuevas por WhatsApp arrancarán desde el 76 en adelante
 lote_contador = 1
 lotes_pendientes = {}    
 numeros_liberados = {}  
@@ -638,7 +638,7 @@ def admin_agregar_manual():
                 "metodo_pago": "Manual (Recuperación)",
                 "detalle_pago": "Carga interna por reinicio",
                 "estado": "Aprobado", 
-                "impreso": True,
+                "impreso": True,  # <--- YA NACEN MARCADOS COMO IMPRESOS PARA EVITAR QUE VAYAN A LA COLA DE IMPRESIÓN
             }
             boletos_db.append(nuevo_boleto)
 
@@ -665,42 +665,6 @@ def admin_aprobar_lote(lote_id):
             guardar_datos_disco()
             return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
     return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
-
-
-# ==========================================
-# RUTA: ELIMINAR / LIBERAR LOTE PENDIENTE
-# ==========================================
-@app.route("/api/admin/eliminar-lote/<int:lote_id>", methods=["POST"])
-def admin_eliminar_lote(lote_id):
-    data = request.json or {}
-    if not verificar_admin(data): 
-        return jsonify({"error": "No autorizado"}), 401
-    
-    with bloqueo_compra:
-        global boletos_db, numeros_liberados, lotes_pendientes
-        
-        boletos_a_eliminar = [b for b in boletos_db if b["lote_id"] == lote_id and b["estado"] == "Pendiente"]
-        
-        if not boletos_a_eliminar:
-            return jsonify({"error": "Lote no encontrado o ya fue aprobado."}), 404
-        
-        sorteo_id = boletos_a_eliminar[0]["sorteo_id"]
-        
-        if sorteo_id not in numeros_liberados:
-            numeros_liberados[sorteo_id] = []
-            
-        for b in boletos_a_eliminar:
-            numeros_liberados[sorteo_id].append(b["id"])
-            
-        boletos_db = [b for b in boletos_db if not (b["lote_id"] == lote_id and b["estado"] == "Pendiente")]
-        
-        if lote_id in lotes_pendientes:
-            del lotes_pendientes[lote_id]
-            
-        guardar_datos_disco()
-        
-    return jsonify({"mensaje": f"¡Lote #{lote_id} eliminado y números liberados con éxito!"}), 200
-
 
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
