@@ -1,477 +1,456 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - Sorteos Vifran Group S.A.</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Sorteos Vifran Group S.A.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen p-4 md:p-6 font-sans">
-    
-    <!-- Pantalla de Login -->
-    <div id="loginContainer" class="max-w-md mx-auto mt-20 bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
-        <h1 class="text-2xl font-black text-amber-400 mb-6 text-center">🔒 Acceso Administrativo</h1>
-        <form id="formLogin" class="space-y-4">
-            <div>
-                <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Usuario</label>
-                <input type="text" id="loginUsuario" required placeholder="Ej: patriciafranco" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-            </div>
-            <div>
-                <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Contraseña</label>
-                <input type="password" id="loginPassword" required placeholder="••••••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-            </div>
-            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition">Ingresar al Panel</button>
-        </form>
-        <div id="errorLogin" class="mt-4 text-center font-semibold text-rose-400 text-sm"></div>
-    </div>
+    
+    <!-- Pantalla de Login -->
+    <div id="loginContainer" class="max-w-md mx-auto mt-20 bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+        <h1 class="text-2xl font-black text-amber-400 mb-6 text-center">🔒 Acceso Administrativo</h1>
+        <form id="formLogin" class="space-y-4">
+            <div>
+                <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Usuario</label>
+                <input type="text" id="loginUsuario" required placeholder="Ej: patriciafranco" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Contraseña</label>
+                <input type="password" id="loginPassword" required placeholder="••••••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition">Ingresar al Panel</button>
+        </form>
+        <div id="errorLogin" class="mt-4 text-center font-semibold text-rose-400 text-sm"></div>
+    </div>
 
-    <!-- Panel de Control Principal -->
-    <div id="adminPanel" class="max-w-6xl mx-auto space-y-8 hidden">
-        <header class="flex justify-between items-center border-b border-slate-800 pb-4">
-            <h1 class="text-2xl font-black text-amber-400">🔒 Panel de Control - Vifran Group S.A.</h1>
-            <button onclick="cerrarSesion()" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2 rounded-xl transition">Cerrar Sesión</button>
-        </header>
+    <!-- Panel de Control Principal -->
+    <div id="adminPanel" class="max-w-6xl mx-auto space-y-8 hidden">
+        <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+            <h1 class="text-2xl font-black text-amber-400">🔒 Panel de Control - Vifran Group S.A.</h1>
+            <button onclick="cerrarSesion()" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2 rounded-xl transition">Cerrar Sesión</button>
+        </header>
 
-        <!-- ZONA DE PRUEBAS: BOTÓN DE LIMPIEZA -->
-        <div class="bg-slate-800 p-5 rounded-2xl shadow-xl border border-rose-500/40 flex justify-between items-center">
-            <div>
-                <h3 class="font-bold text-rose-400 text-sm">🗑️ Panel de Pruebas y Simulaciones</h3>
-                <p class="text-xs text-slate-400">Elimina todos los boletos, lotes y clientes de prueba antes de abrir las ventas oficiales.</p>
-            </div>
-            <button onclick="limpiarSistemaPruebas()" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">
-                🗑️ Limpiar Pruebas
-            </button>
-        </div>
+        <!-- ZONA DE PRUEBAS: BOTÓN DE LIMPIEZA -->
+        <div class="bg-slate-800 p-5 rounded-2xl shadow-xl border border-rose-500/40 flex justify-between items-center">
+            <div>
+                <h3 class="font-bold text-rose-400 text-sm">🗑️ Panel de Pruebas y Simulaciones</h3>
+                <p class="text-xs text-slate-400">Elimina todos los boletos, lotes y clientes de prueba antes de abrir las ventas oficiales.</p>
+            </div>
+            <button onclick="limpiarSistemaPruebas()" class="bg-rose-600 hover:bg-rose-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">
+                🗑️ Limpiar Pruebas
+            </button>
+        </div>
 
-        <!-- Crear Nuevo Sorteo -->
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-            <h2 class="text-lg font-bold mb-4 text-amber-300">➕ Crear Nuevo Sorteo / Rifa</h2>
-            <form id="formNuevoSorteo" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Título del Sorteo</label>
-                    <input type="text" id="nuevoTitulo" required placeholder="Ej: Combo 4 iPhones" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white">
-                </div>
-                <div>
-                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Precio por Boleto (Gs.)</label>
-                    <input type="number" id="nuevoPrecio" required value="10000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white">
-                </div>
-                <div>
-                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Límite Total de Boletos</label>
-                    <input type="number" id="nuevoLimite" required value="1000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white">
-                </div>
-                <div class="md:col-span-3">
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-3 rounded-xl text-white transition">Crear Sorteo</button>
-                </div>
-            </form>
-            <div id="resCrearSorteo" class="mt-4 text-center font-semibold text-sm"></div>
-        </div>
+        <!-- Crear Nuevo Sorteo -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h2 class="text-lg font-bold mb-4 text-amber-300">➕ Crear Nuevo Sorteo / Rifa</h2>
+            <form id="formNuevoSorteo" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Título del Sorteo</label>
+                    <input type="text" id="nuevoTitulo" required placeholder="Ej: Combo 4 iPhones" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Precio por Boleto (Gs.)</label>
+                    <input type="number" id="nuevoPrecio" required value="10000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-slate-400 mb-1">Límite Total de Boletos</label>
+                    <input type="number" id="nuevoLimite" required value="1000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white">
+                </div>
+                <div class="md:col-span-3">
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-3 rounded-xl text-white transition">Crear Sorteo</button>
+                </div>
+            </form>
+            <div id="resCrearSorteo" class="mt-4 text-center font-semibold text-sm"></div>
+        </div>
 
-        <!-- CARGA MANUAL DE BOLETOS CON NÚMERO INICIAL -->
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-            <h3 class="text-lg font-bold text-amber-400 mb-4">➕ Carga Manual de Boletos (Recuperación)</h3>
-            <p class="text-xs text-slate-400 mb-4">Ingresa el número inicial exacto (ej: 1) para registrar a tus clientes anteriores en orden sin enviarles WhatsApp.</p>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <input type="text" id="manual_nombre" placeholder="Nombre del Cliente" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                <input type="text" id="manual_cedula" placeholder="Cédula / Teléfono" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                <input type="number" id="manual_inicio" placeholder="Nro. Inicial (Ej: 1)" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                <input type="number" id="manual_cantidad" placeholder="Cantidad" value="1" min="1" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                <button onclick="enviarCargaManual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold p-3 rounded-xl transition text-sm">Agregar</button>
-            </div>
-        </div>
+        <!-- CARGA MANUAL DE BOLETOS CON NÚMERO INICIAL -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h3 class="text-lg font-bold text-amber-400 mb-4">➕ Carga Manual de Boletos (Recuperación)</h3>
+            <p class="text-xs text-slate-400 mb-4">Ingresa el número inicial exacto (ej: 1) para registrar a tus clientes anteriores en orden sin enviarles WhatsApp.</p>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <input type="text" id="manual_nombre" placeholder="Nombre del Cliente" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <input type="text" id="manual_cedula" placeholder="Cédula / Teléfono" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <input type="number" id="manual_inicio" placeholder="Nro. Inicial (Ej: 1)" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <input type="number" id="manual_cantidad" placeholder="Cantidad" value="1" min="1" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                <button onclick="enviarCargaManual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold p-3 rounded-xl transition text-sm">Agregar</button>
+            </div>
+        </div>
 
-        <!-- Estadísticas y Gráfico -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-                <h2 class="text-lg font-bold mb-4 text-amber-300">📊 Control de Ganancias por Sorteo</h2>
-                <div id="listaSorteosAdmin" class="space-y-4"></div>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 flex flex-col items-center justify-center">
-                <h2 class="text-lg font-bold mb-4 text-amber-300 self-start">📈 Distribución de Recaudación Global</h2>
-                <div class="w-64 h-64 relative">
-                    <canvas id="graficoRecaudacion"></canvas>
-                </div>
-            </div>
-        </div>
+        <!-- Estadísticas y Gráfico -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                <h2 class="text-lg font-bold mb-4 text-amber-300">📊 Control de Ganancias por Sorteo</h2>
+                <div id="listaSorteosAdmin" class="space-y-4"></div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 flex flex-col items-center justify-center">
+                <h2 class="text-lg font-bold mb-4 text-amber-300 self-start">📈 Distribución de Recaudación Global</h2>
+                <div class="w-64 h-64 relative">
+                    <canvas id="graficoRecaudacion"></canvas>
+                </div>
+            </div>
+        </div>
 
-        <!-- Validación de Comprobantes -->
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-            <h2 class="text-lg font-bold mb-4 text-amber-300">🧾 Validación de Comprobantes y Lotes Pendientes</h2>
-            <div id="listaLotesPendientes" class="space-y-4"></div>
-        </div>
+        <!-- Validación de Comprobantes -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h2 class="text-lg font-bold mb-4 text-amber-300">🧾 Validación de Comprobantes y Lotes Pendientes</h2>
+            <div id="listaLotesPendientes" class="space-y-4"></div>
+        </div>
 
-        <!-- Historial General -->
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-            <h2 class="text-lg font-bold mb-4 text-amber-300">📋 Historial General de Boletos Vendidos</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                            <th class="p-3">Boleto #</th>
-                            <th class="p-3">Comprador</th>
-                            <th class="p-3">Cédula / Teléfono</th>
-                            <th class="p-3">Estado</th>
-                            <th class="p-3">Impreso / Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaHistorialBoletos" class="text-sm divide-y divide-slate-700/50"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+        <!-- Historial General -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h2 class="text-lg font-bold mb-4 text-amber-300">📋 Historial General de Boletos Vendidos</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
+                            <th class="p-3">Boleto #</th>
+                            <th class="p-3">Comprador</th>
+                            <th class="p-3">Cédula / Teléfono</th>
+                            <th class="p-3">Estado</th>
+                            <th class="p-3">Impreso / Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaHistorialBoletos" class="text-sm divide-y divide-slate-700/50"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    <!-- MODAL PARA VER COMPROBANTES EN GRANDE -->
-    <div id="modalImagen" class="fixed inset-0 z-50 hidden bg-slate-950/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm transition-opacity">
-        <button onclick="cerrarModal()" class="absolute top-6 right-6 text-white text-5xl font-light cursor-pointer hover:text-rose-500 transition">&times;</button>
-        <img id="imgEnModal" src="" class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-700">
-        <button onclick="cerrarModal()" class="mt-6 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-6 py-2 rounded-xl text-white font-bold transition">Cerrar Visor</button>
-    </div>
+    <!-- MODAL PARA VER COMPROBANTES EN GRANDE -->
+    <div id="modalImagen" class="fixed inset-0 z-50 hidden bg-slate-950/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <button onclick="cerrarModal()" class="absolute top-6 right-6 text-white text-5xl font-light cursor-pointer hover:text-rose-500 transition">&times;</button>
+        <img id="imgEnModal" src="" class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-700">
+        <button onclick="cerrarModal()" class="mt-6 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-6 py-2 rounded-xl text-white font-bold transition">Cerrar Visor</button>
+    </div>
 
-    <script>
-        let currentUser = localStorage.getItem('vifran_user') || '';
-        let currentPass = localStorage.getItem('vifran_pass') || '';
-        let miGrafico = null;
+    <script>
+        let currentUser = localStorage.getItem('vifran_user') || '';
+        let currentPass = localStorage.getItem('vifran_pass') || '';
+        let miGrafico = null;
 
-        if(currentUser && currentPass) {
-            verificarAccesoAutomatico();
-        }
+        if(currentUser && currentPass) {
+            verificarAccesoAutomatico();
+        }
 
-        async function verificarAccesoAutomatico() {
-            const res = await fetch('/api/admin/datos', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: currentUser, password: currentPass })
-            });
-            if(res.ok) {
-                document.getElementById('loginContainer').classList.add('hidden');
-                document.getElementById('adminPanel').classList.remove('hidden');
-                cargarDatosAdmin();
-            } else {
-                cerrarSesion();
-            }
-        }
+        async function verificarAccesoAutomatico() {
+            const res = await fetch('/api/admin/datos', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            if(res.ok) {
+                document.getElementById('loginContainer').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                cargarDatosAdmin();
+            } else {
+                cerrarSesion();
+            }
+        }
 
-        document.getElementById('formLogin').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const u = document.getElementById('loginUsuario').value.trim();
-            const p = document.getElementById('loginPassword').value.trim();
+        document.getElementById('formLogin').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('loginUsuario').value.trim();
+            const p = document.getElementById('loginPassword').value.trim();
 
-            const res = await fetch('/api/admin/datos', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: u, password: p })
-            });
+            const res = await fetch('/api/admin/datos', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: u, password: p })
+            });
 
-            if(res.ok) {
-                localStorage.setItem('vifran_user', u);
-                localStorage.setItem('vifran_pass', p);
-                currentUser = u;
-                currentPass = p;
-                document.getElementById('loginContainer').classList.add('hidden');
-                document.getElementById('adminPanel').classList.remove('hidden');
-                cargarDatosAdmin();
-            } else {
-                document.getElementById('errorLogin').innerText = "Usuario o contraseña incorrectos.";
-            }
-        });
+            if(res.ok) {
+                localStorage.setItem('vifran_user', u);
+                localStorage.setItem('vifran_pass', p);
+                currentUser = u;
+                currentPass = p;
+                document.getElementById('loginContainer').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                cargarDatosAdmin();
+            } else {
+                document.getElementById('errorLogin').innerText = "Usuario o contraseña incorrectos.";
+            }
+        });
 
-        // Función de Carga Manual con Número Inicial
-        async function enviarCargaManual() {
-            const nombre = document.getElementById('manual_nombre').value.trim();
-            const cedula = document.getElementById('manual_cedula').value.trim();
-            const inicio_personalizado = document.getElementById('manual_inicio').value.trim();
-            const cantidad = parseInt(document.getElementById('manual_cantidad').value) || 1;
+        // Función de Carga Manual con Número Inicial
+        async function enviarCargaManual() {
+            const nombre = document.getElementById('manual_nombre').value.trim();
+            const cedula = document.getElementById('manual_cedula').value.trim();
+            const inicio_personalizado = document.getElementById('manual_inicio').value.trim();
+            const cantidad = parseInt(document.getElementById('manual_cantidad').value) || 1;
 
-            if (!nombre) {
-                alert("Por favor ingresa el nombre del cliente.");
-                return;
-            }
+            if (!nombre) {
+                alert("Por favor ingresa el nombre del cliente.");
+                return;
+            }
 
-            const res = await fetch('/api/admin/agregar-manual', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    usuario: currentUser,
-                    password: currentPass,
-                    sorteo_id: 1,
-                    nombre: nombre,
-                    cedula: cedula || "S/N",
-                    telefono: "0000000000",
-                    cantidad: cantidad,
-                    inicio_personalizado: inicio_personalizado
-                })
-            });
+            const res = await fetch('/api/admin/agregar-manual', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    usuario: currentUser,
+                    password: currentPass,
+                    sorteo_id: 1,
+                    nombre: nombre,
+                    cedula: cedula || "S/N",
+                    telefono: "0000000000",
+                    cantidad: cantidad,
+                    inicio_personalizado: inicio_personalizado
+                })
+            });
 
-            const data = await res.json();
-            if (res.ok) {
-                alert(data.mensaje);
-                document.getElementById('manual_nombre').value = '';
-                document.getElementById('manual_cedula').value = '';
-                document.getElementById('manual_inicio').value = '';
-                document.getElementById('manual_cantidad').value = '1';
-                cargarDatosAdmin();
-            } else {
-                alert("Error: " + (data.error || "No se pudo agregar"));
-            }
-        }
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.mensaje);
+                document.getElementById('manual_nombre').value = '';
+                document.getElementById('manual_cedula').value = '';
+                document.getElementById('manual_inicio').value = '';
+                document.getElementById('manual_cantidad').value = '1';
+                cargarDatosAdmin();
+            } else {
+                alert("Error: " + (data.error || "No se pudo agregar"));
+            }
+        }
 
-        // Funciones del Visor de Imágenes (Modal)
-        function abrirModal(src) {
-            document.getElementById('imgEnModal').src = src;
-            document.getElementById('modalImagen').classList.remove('hidden');
-        }
+        // Funciones del Visor de Imágenes (Modal)
+        function abrirModal(src) {
+            document.getElementById('imgEnModal').src = src;
+            document.getElementById('modalImagen').classList.remove('hidden');
+        }
 
-        function cerrarModal() {
-            document.getElementById('modalImagen').classList.add('hidden');
-            document.getElementById('imgEnModal').src = "";
-        }
+        function cerrarModal() {
+            document.getElementById('modalImagen').classList.add('hidden');
+            document.getElementById('imgEnModal').src = "";
+        }
 
-        async function cargarDatosAdmin() {
-            const res = await fetch('/api/admin/datos', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: currentUser, password: currentPass })
-            });
-            if(res.ok) {
-                const data = await res.json();
-                
-                const estadisticasSorteos = {};
-                data.sorteos.forEach(s => {
-                    estadisticasSorteos[s.id] = { ...s, aprobadosCount: 0, recaudacion: 0 };
-                });
+        async function cargarDatosAdmin() {
+            const res = await fetch('/api/admin/datos', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            if(res.ok) {
+                const data = await res.json();
+                
+                const estadisticasSorteos = {};
+                data.sorteos.forEach(s => {
+                    estadisticasSorteos[s.id] = { ...s, aprobadosCount: 0, recaudacion: 0 };
+                });
 
-                data.boletos.forEach(b => {
-                    if(b.estado === 'Aprobado' && estadisticasSorteos[b.sorteo_id]) {
-                        estadisticasSorteos[b.sorteo_id].aprobadosCount++;
-                        estadisticasSorteos[b.sorteo_id].recaudacion += estadisticasSorteos[b.sorteo_id].precio;
-                    }
-                });
+                data.boletos.forEach(b => {
+                    if(b.estado === 'Aprobado' && estadisticasSorteos[b.sorteo_id]) {
+                        estadisticasSorteos[b.sorteo_id].aprobadosCount++;
+                        estadisticasSorteos[b.sorteo_id].recaudacion += estadisticasSorteos[b.sorteo_id].precio;
+                    }
+                });
 
-                const divSorteos = document.getElementById('listaSorteosAdmin');
-                divSorteos.innerHTML = '';
-                const labelsGrafico = [];
-                const datosGrafico = [];
-                const coloresGrafico = ['#f59e0b', '#10b981', '#6366f1', '#ec4899', '#3b82f6'];
+                const divSorteos = document.getElementById('listaSorteosAdmin');
+                divSorteos.innerHTML = '';
+                const labelsGrafico = [];
+                const datosGrafico = [];
+                const coloresGrafico = ['#f59e0b', '#10b981', '#6366f1', '#ec4899', '#3b82f6'];
 
-                Object.values(estadisticasSorteos).forEach((s) => {
-                    labelsGrafico.push(s.titulo);
-                    datosGrafico.push(s.recaudacion);
+                Object.values(estadisticasSorteos).forEach((s) => {
+                    labelsGrafico.push(s.titulo);
+                    datosGrafico.push(s.recaudacion);
 
-                    divSorteos.innerHTML += `
-                        <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center text-sm">
-                            <div>
-                                <p class="font-bold text-amber-400">${s.titulo}</p>
-                                <p class="text-xs text-slate-400">Aprobados: ${s.aprobadosCount} | Límite: ${s.limite_boletos}</p>
-                                <p class="text-sm font-extrabold text-emerald-400 mt-1">Gs. ${s.recaudacion.toLocaleString()}</p>
-                                <span class="inline-block mt-2 px-2.5 py-0.5 rounded-lg text-xs font-bold ${s.estado === 'Activo' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${s.estado}</span>
-                            </div>
-                            ${s.estado === 'Activo' ? `<button onclick="finalizarSorteo(${s.id})" class="text-xs font-bold text-rose-400 hover:text-rose-300 underline">Finalizar</button>` : ''}
-                        </div>`;
-                });
+                    divSorteos.innerHTML += `
+                        <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center text-sm">
+                            <div>
+                                <p class="font-bold text-amber-400">${s.titulo}</p>
+                                <p class="text-xs text-slate-400">Aprobados: ${s.aprobadosCount} | Límite: ${s.limite_boletos}</p>
+                                <p class="text-sm font-extrabold text-emerald-400 mt-1">Gs. ${s.recaudacion.toLocaleString()}</p>
+                                <span class="inline-block mt-2 px-2.5 py-0.5 rounded-lg text-xs font-bold ${s.estado === 'Activo' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${s.estado}</span>
+                            </div>
+                            ${s.estado === 'Activo' ? `<button onclick="finalizarSorteo(${s.id})" class="text-xs font-bold text-rose-400 hover:text-rose-300 underline">Finalizar</button>` : ''}
+                        </div>`;
+                });
 
-                const ctx = document.getElementById('graficoRecaudacion').getContext('2d');
-                if(miGrafico) miGrafico.destroy();
-                miGrafico = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: labelsGrafico,
-                        datasets: [{ data: datosGrafico, backgroundColor: coloresGrafico.slice(0, labelsGrafico.length), borderWidth: 0 }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 } } } }
-                    }
-                });
+                const ctx = document.getElementById('graficoRecaudacion').getContext('2d');
+                if(miGrafico) miGrafico.destroy();
+                miGrafico = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labelsGrafico,
+                        datasets: [{ data: datosGrafico, backgroundColor: coloresGrafico.slice(0, labelsGrafico.length), borderWidth: 0 }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 } } } }
+                    }
+                });
 
-                const divPendientes = document.getElementById('listaLotesPendientes');
-                divPendientes.innerHTML = '';
-                const lotesPendientesMap = {};
-                data.boletos.forEach(b => {
-                    if(b.estado === 'Pendiente') {
-                        if(!lotesPendientesMap[b.lote_id]) {
-                            lotesPendientesMap[b.lote_id] = {
-                                lote_id: b.lote_id, nombre: b.nombre, cedula: b.cedula,
-                                telefono: b.telefono, cantidad: b.cantidad_lote,
-                                imagen: b.imagen_comprobante, boletos: []
-                            };
-                        }
-                        lotesPendientesMap[b.lote_id].boletos.push(b.id);
-                    }
-                });
+                const divPendientes = document.getElementById('listaLotesPendientes');
+                divPendientes.innerHTML = '';
+                const lotesPendientesMap = {};
+                data.boletos.forEach(b => {
+                    if(b.estado === 'Pendiente') {
+                        if(!lotesPendientesMap[b.lote_id]) {
+                            lotesPendientesMap[b.lote_id] = {
+                                lote_id: b.lote_id, nombre: b.nombre, cedula: b.cedula,
+                                telefono: b.telefono, cantidad: b.cantidad_lote,
+                                imagen: b.imagen_comprobante, boletos: []
+                            };
+                        }
+                        lotesPendientesMap[b.lote_id].boletos.push(b.id);
+                    }
+                });
 
-                const lotesArray = Object.values(lotesPendientesMap);
-                if(lotesArray.length === 0) {
-                    divPendientes.innerHTML = `<p class="text-slate-400 text-sm text-center py-4">No hay pagos pendientes de aprobación.</p>`;
-                } else {
-                    lotesArray.forEach(l => {
-                        let comprobanteHtml = '<p class="text-xs text-rose-400">Sin comprobante adjunto</p>';
-                        if(l.imagen) {
-                            if(l.imagen.startsWith('http')) {
-                                comprobanteHtml = `<div class="mt-2"><a href="${l.imagen}" target="_blank" class="inline-block bg-slate-950 px-3 py-2 rounded-xl border border-slate-700 text-amber-400 text-xs font-bold underline hover:text-amber-300">🔍 Ver Comprobante de WhatsApp (Abrir Imagen)</a></div>`;
-                            } else {
-                                comprobanteHtml = `<div class="mt-2"><img src="${l.imagen}" onclick="abrirModal(this.src)" alt="Comprobante" class="w-32 h-32 object-cover rounded-xl border border-slate-700 hover:opacity-80 transition cursor-pointer shadow-md ring-2 ring-transparent hover:ring-amber-400"></div>`;
-                            }
-                        }
+                const lotesArray = Object.values(lotesPendientesMap);
+                if(lotesArray.length === 0) {
+                    divPendientes.innerHTML = `<p class="text-slate-400 text-sm text-center py-4">No hay pagos pendientes de aprobación.</p>`;
+                } else {
+                    lotesArray.forEach(l => {
+                        let comprobanteHtml = '<p class="text-xs text-rose-400">Sin comprobante adjunto</p>';
+                        if(l.imagen) {
+                            if(l.imagen.startsWith('http')) {
+                                comprobanteHtml = `<div class="mt-2"><a href="${l.imagen}" target="_blank" class="inline-block bg-slate-950 px-3 py-2 rounded-xl border border-slate-700 text-amber-400 text-xs font-bold underline hover:text-amber-300">🔍 Ver Comprobante de WhatsApp (Abrir Imagen)</a></div>`;
+                            } else {
+                                comprobanteHtml = `<div class="mt-2"><img src="${l.imagen}" onclick="abrirModal(this.src)" alt="Comprobante" class="w-32 h-32 object-cover rounded-xl border border-slate-700 hover:opacity-80 transition cursor-pointer shadow-md ring-2 ring-transparent hover:ring-amber-400"></div>`;
+                            }
+                        }
 
-                        divPendientes.innerHTML += `
-                            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-bold text-amber-400">${l.nombre} (CI: ${l.cedula})</p>
-                                        <p class="text-xs text-slate-400">Tel: ${l.telefono} | Cantidad: ${l.cantidad} boletos</p>
-                                        <p class="text-xs text-emerald-400 mt-1">Asignados: #${l.boletos[0]} al #${l.boletos[l.boletos.length-1]}</p>
-                                    </div>
-                                    <div class="flex space-x-2">
-                                        <button onclick="aprobarLote(${l.lote_id})" class="bg-emerald-600 hover:bg-emerald-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">Aprobar e Imprimir</button>
-                                        <button onclick="eliminarLotePendiente(${l.lote_id})" class="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition shadow-lg">🗑️ Eliminar</button>
-                                    </div>
-                                </div>
-                                ${comprobanteHtml}
-                            </div>`;
-                    });
-                }
+                        divPendientes.innerHTML += `
+                            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <p class="font-bold text-amber-400">${l.nombre} (CI: ${l.cedula})</p>
+                                        <p class="text-xs text-slate-400">Tel: ${l.telefono} | Cantidad: ${l.cantidad} boletos</p>
+                                        <p class="text-xs text-emerald-400 mt-1">Asignados: #${l.boletos[0]} al #${l.boletos[l.boletos.length-1]}</p>
+                                    </div>
+                                    <button onclick="aprobarLote(${l.lote_id})" class="bg-emerald-600 hover:bg-emerald-500 text-xs font-bold px-4 py-2.5 rounded-xl transition text-white shadow-lg">Aprobar e Imprimir</button>
+                                </div>
+                                ${comprobanteHtml}
+                            </div>`;
+                    });
+                }
 
-                const tablaHistorial = document.getElementById('tablaHistorialBoletos');
-                tablaHistorial.innerHTML = '';
-                if(data.boletos.length === 0) {
-                    tablaHistorial.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay boletos registrados aún.</td></tr>`;
-                } else {
-                    data.boletos.forEach(b => {
-                        let estadoBadge = b.estado === 'Aprobado' 
-                            ? '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Aprobado</span>' 
-                            : '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">Pendiente</span>';
+                const tablaHistorial = document.getElementById('tablaHistorialBoletos');
+                tablaHistorial.innerHTML = '';
+                if(data.boletos.length === 0) {
+                    tablaHistorial.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay boletos registrados aún.</td></tr>`;
+                } else {
+                    data.boletos.forEach(b => {
+                        let estadoBadge = b.estado === 'Aprobado' 
+                            ? '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Aprobado</span>' 
+                            : '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">Pendiente</span>';
 
-                        let impresoHtml = b.impreso === 'Impreso' || b.impreso === true
-                            ? '<span class="text-emerald-400 font-bold">Impreso</span>' 
-                            : '<span class="text-amber-400">Pendiente</span>';
+                        let impresoHtml = b.impreso === 'Impreso' || b.impreso === true
+                            ? '<span class="text-emerald-400 font-bold">Impreso</span>' 
+                            : '<span class="text-amber-400">Pendiente</span>';
 
-                        tablaHistorial.innerHTML += `
-                            <tr class="hover:bg-slate-700/30">
-                                <td class="p-3 font-bold text-amber-400">#${b.id}</td>
-                                <td class="p-3">${b.nombre}</td>
-                                <td class="p-3 text-slate-300">CI: ${b.cedula}<br><span class="text-xs text-slate-400">Tel: ${b.telefono}</span></td>
-                                <td class="p-3">${estadoBadge}</td>
-                                <td class="p-3 flex items-center space-x-3">
-                                    ${impresoHtml}
-                                    <button onclick="reimprimirBoleto(${b.id})" class="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2.5 py-1 rounded text-xs transition duration-150 shadow">
-                                        🖨️ Re-imprimir
-                                    </button>
-                                </td>
-                            </tr>`;
-                    });
-                }
-            }
-        }
+                        tablaHistorial.innerHTML += `
+                            <tr class="hover:bg-slate-700/30">
+                                <td class="p-3 font-bold text-amber-400">#${b.id}</td>
+                                <td class="p-3">${b.nombre}</td>
+                                <td class="p-3 text-slate-300">CI: ${b.cedula}<br><span class="text-xs text-slate-400">Tel: ${b.telefono}</span></td>
+                                <td class="p-3">${estadoBadge}</td>
+                                <td class="p-3 flex items-center space-x-3">
+                                    ${impresoHtml}
+                                    <button onclick="reimprimirBoleto(${b.id})" class="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2.5 py-1 rounded text-xs transition duration-150 shadow">
+                                        🖨️ Re-imprimir
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+                }
+            }
+        }
 
-        async function limpiarSistemaPruebas() {
-            if(!confirm("¿Estás 100% seguro de borrar todas las pruebas? Esta acción dejará el sistema en cero.")) return;
-            
-            const res = await fetch('/api/admin/limpiar-pruebas', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: currentUser, password: currentPass })
-            });
-            const data = await res.json();
-            if(res.ok) {
-                alert(data.mensaje);
-                location.reload();
-            } else {
-                alert(data.error || "Error al limpiar el sistema");
-            }
-        }
+        async function limpiarSistemaPruebas() {
+            if(!confirm("¿Estás 100% seguro de borrar todas las pruebas? Esta acción dejará el sistema en cero.")) return;
+            
+            const res = await fetch('/api/admin/limpiar-pruebas', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            const data = await res.json();
+            if(res.ok) {
+                alert(data.mensaje);
+                location.reload();
+            } else {
+                alert(data.error || "Error al limpiar el sistema");
+            }
+        }
 
-        async function aprobarLote(loteId) {
-            const res = await fetch(`/api/admin/aprobar-lote/${loteId}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: currentUser, password: currentPass })
-            });
-            const data = await res.json();
-            if(res.ok) { alert(data.mensaje); cargarDatosAdmin(); }
-            else { alert(data.error || "Error al aprobar lote"); }
-        }
+        async function aprobarLote(loteId) {
+            const res = await fetch(`/api/admin/aprobar-lote/${loteId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            const data = await res.json();
+            if(res.ok) { alert(data.mensaje); cargarDatosAdmin(); }
+            else { alert(data.error || "Error al aprobar lote"); }
+        }
 
-        async function eliminarLotePendiente(loteId) {
-            if (!confirm("¿Estás seguro de eliminar este lote pendiente? Los números volverán a quedar disponibles.")) return;
-            
-            const res = await fetch(`/api/admin/eliminar-lote/${loteId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuario: currentUser, password: currentPass })
-            });
-            
-            const data = await res.json();
-            if (res.ok) {
-                alert(data.mensaje);
-                cargarDatosAdmin();
-            } else {
-                alert("Error: " + (data.error || "No se pudo eliminar el lote"));
-            }
-        }
+        async function reimprimirBoleto(boletoId) {
+            try {
+                const res = await fetch(`/api/reimprimir/${boletoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario: currentUser, password: currentPass })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert("¡Orden de reimpresión enviada con éxito a la impresora!");
+                    cargarDatosAdmin();
+                } else {
+                    alert("Error: " + (data.error || "No se pudo reimprimir"));
+                }
+            } catch (error) {
+                alert("Error de conexión al intentar reimprimir.");
+            }
+        }
 
-        async function reimprimirBoleto(boletoId) {
-            try {
-                const res = await fetch(`/api/reimprimir/${boletoId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ usuario: currentUser, password: currentPass })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    alert("¡Orden de reimpresión enviada con éxito à la impresora!");
-                    cargarDatosAdmin();
-                } else {
-                    alert("Error: " + (data.error || "No se pudo reimprimir"));
-                }
-            } catch (error) {
-                alert("Error de conexión al intentar reimprimir.");
-            }
-        }
+        async function finalizarSorteo(sorteoId) {
+            if(!confirm("¿Estás seguro de finalizar este sorteo?")) return;
+            const res = await fetch(`/api/admin/finalizar-sorteo/${sorteoId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario: currentUser, password: currentPass })
+            });
+            const data = await res.json();
+            if(res.ok) { alert(data.mensaje); cargarDatosAdmin(); }
+            else { alert(data.error || "Error al finalizar sorteo"); }
+        }
 
-        async function finalizarSorteo(sorteoId) {
-            if(!confirm("¿Estás seguro de finalizar este sorteo?")) return;
-            const res = await fetch(`/api/admin/finalizar-sorteo/${sorteoId}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ usuario: currentUser, password: currentPass })
-            });
-            const data = await res.json();
-            if(res.ok) { alert(data.mensaje); cargarDatosAdmin(); }
-            else { alert(data.error || "Error al finalizar sorteo"); }
-        }
+        document.getElementById('formNuevoSorteo').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/admin/crear-sorteo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    usuario: currentUser,
+                    password: currentPass,
+                    titulo: document.getElementById('nuevoTitulo').value,
+                    precio: parseInt(document.getElementById('nuevoPrecio').value),
+                    limite_boletos: parseInt(document.getElementById('nuevoLimite').value)
+                })
+            });
+            const data = await res.json();
+            const resDiv = document.getElementById('resCrearSorteo');
+            if(res.ok) {
+                resDiv.className = "mt-4 text-center font-semibold text-emerald-400";
+                resDiv.innerText = data.mensaje;
+                document.getElementById('formNuevoSorteo').reset();
+                cargarDatosAdmin();
+            } else {
+                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
+                resDiv.innerText = data.error;
+            }
+        });
 
-        document.getElementById('formNuevoSorteo').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const res = await fetch('/api/admin/crear-sorteo', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    usuario: currentUser,
-                    password: currentPass,
-                    titulo: document.getElementById('nuevoTitulo').value,
-                    precio: parseInt(document.getElementById('nuevoPrecio').value),
-                    limite_boletos: parseInt(document.getElementById('nuevoLimite').value)
-                })
-            });
-            const data = await res.json();
-            const resDiv = document.getElementById('resCrearSorteo');
-            if(res.ok) {
-                resDiv.className = "mt-4 text-center font-semibold text-emerald-400";
-                resDiv.innerText = data.mensaje;
-                document.getElementById('formNuevoSorteo').reset();
-                cargarDatosAdmin();
-            } else {
-                resDiv.className = "mt-4 text-center font-semibold text-rose-400";
-                resDiv.innerText = data.error;
-            }
-        });
-
-        function cerrarSesion() {
-            localStorage.removeItem('vifran_user');
-            localStorage.removeItem('vifran_pass');
-            window.location.reload();
-        }
-    </script>
+        function cerrarSesion() {
+            localStorage.removeItem('vifran_user');
+            localStorage.removeItem('vifran_pass');
+            window.location.reload();
+        }
+    </script>
 </body>
 </html>
