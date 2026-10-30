@@ -666,6 +666,46 @@ def admin_aprobar_lote(lote_id):
             return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
     return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
 
+
+# ==========================================
+# RUTA NUEVA: ELIMINAR / LIBERAR LOTE PENDIENTE
+# ==========================================
+@app.route("/api/admin/eliminar-lote/<int:lote_id>", methods=["POST"])
+def admin_eliminar_lote(lote_id):
+    data = request.json or {}
+    if not verificar_admin(data): 
+        return jsonify({"error": "No autorizado"}), 401
+    
+    with bloqueo_compra:
+        global boletos_db, numeros_liberados, lotes_pendientes
+        
+        # Filtramos los boletos pendientes de este lote
+        boletos_a_eliminar = [b for b in boletos_db if b["lote_id"] == lote_id and b["estado"] == "Pendiente"]
+        
+        if not boletos_a_eliminar:
+            return jsonify({"error": "Lote no encontrado o ya fue aprobado."}), 404
+        
+        sorteo_id = boletos_a_eliminar[0]["sorteo_id"]
+        
+        if sorteo_id not in numeros_liberados:
+            numeros_liberados[sorteo_id] = []
+            
+        # Devolvemos los números a la lista de liberados para que se reutilicen
+        for b in boletos_a_eliminar:
+            numeros_liberados[sorteo_id].append(b["id"])
+            
+        # Removemos estos boletos de la base de datos general
+        boletos_db = [b for b in boletos_db if not (b["lote_id"] == lote_id and b["estado"] == "Pendiente")]
+        
+        # Quitamos de lotes pendientes si seguía allí
+        if lote_id in lotes_pendientes:
+            del lotes_pendientes[lote_id]
+            
+        guardar_datos_disco()
+        
+    return jsonify({"mensaje": f"¡Lote #{lote_id} eliminado y números liberados con éxito!"}), 200
+
+
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     pendientes, lotes_procesados = [], set()
