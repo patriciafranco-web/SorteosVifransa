@@ -1,8 +1,9 @@
+import sqlite3
+import os
 import io
 import time
 import threading
 import json
-import os
 from flask import Flask, jsonify, render_template, request, send_file, url_for
 from PIL import Image, ImageDraw, ImageFont
 import requests
@@ -76,7 +77,7 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 
 
 # ==========================================
-# BASE DE DATOS Y PERSISTENCIA BLINDADA (/varidata)
+# BASE DE DATOS SQLITE BLINDADA (/varidata/sorteos.db)
 # ==========================================
 CARPETA_DATOS = "/varidata" if os.path.exists("/varidata") else "."
 if not os.path.exists(CARPETA_DATOS) and CARPETA_DATOS != ".":
@@ -85,64 +86,110 @@ if not os.path.exists(CARPETA_DATOS) and CARPETA_DATOS != ".":
     except:
         CARPETA_DATOS = "."
 
-ARCHIVO_DATOS = os.path.join(CARPETA_DATOS, "datos_vifran.json")
+DB_PATH = os.path.join(CARPETA_DATOS, "sorteos.db")
 
-sorteos_db = [{
-    "id": 1,
-    "titulo": "Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)",
-    "precio": 10000,
-    "limite_boletos": 1000,
-    "estado": "Activo",
-    "imagen_nombre": "flyer_sorteo.jpg",
-}]
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-boletos_db = []
-clientes_db = {}
-contador_boletos_por_sorteo = {1: 110}  # Ajustado para que las ventas nuevas arranquen desde el 110
-lote_contador = 1
-lotes_pendientes = {}    
-numeros_liberados = {}  
-SESIONES_WHATSAPP = {}
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sorteos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            precio INTEGER NOT NULL,
+            limite_boletos INTEGER NOT NULL,
+            estado TEXT NOT NULL,
+            imagen_nombre TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS boletos (
+            id INTEGER,
+            sorteo_id INTEGER,
+            lote_id INTEGER,
+            nombre TEXT,
+            telefono TEXT,
+            cedula TEXT,
+            cantidad_lote INTEGER,
+            imagen_comprobante TEXT,
+            metodo_pago TEXT,
+            detalle_pago TEXT,
+            estado TEXT,
+            impreso INTEGER,
+            PRIMARY KEY (id, sorteo_id)
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clientes (
+            telefono TEXT PRIMARY KEY,
+            nombre TEXT,
+            cedula TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS config (
+            clave TEXT PRIMARY KEY,
+            valor TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS numeros_liberados (
+            sorteo_id INTEGER,
+            numero INTEGER,
+            PRIMARY KEY (sorteo_id, numero)
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lotes_pendientes (
+            lote_id INTEGER PRIMARY KEY,
+            telefono TEXT,
+            tiempo_reserva REAL,
+            recordatorio_enviado INTEGER
+        )
+    ''')
+    
+    conn.commit()
+    
+    # Sorteo por defecto
+    cursor.execute('SELECT COUNT(*) FROM sorteos')
+    if cursor.fetchone()[0] == 0:
+        cursor.execute('''
+            INSERT INTO sorteos (id, titulo, precio, limite_boletos, estado, imagen_nombre)
+            VALUES (1, 'Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)', 10000, 1000, 'Activo', 'flyer_sorteo.jpg')
+        ''')
+        conn.commit()
+        
+    cursor.execute("SELECT valor FROM config WHERE clave = 'contador_1'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '126')")
+        conn.commit()
+
+    cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('lote_contador', '1')")
+        conn.commit()
+        
+    conn.close()
+
+init_db()
 
 ADMIN_USERS = {
     "patriciafranco": "Vifran2026*Secure$",
     "edgarfranco": "Vifran2026*Secure$",
 }
 
-def guardar_datos_disco():
-    datos = {
-        "sorteos": sorteos_db,
-        "boletos": boletos_db,
-        "clientes": clientes_db,
-        "contador_boletos": contador_boletos_por_sorteo,
-        "lote_contador": lote_contador,
-        "numeros_liberados": numeros_liberados
-    }
-    try:
-        with open(ARCHIVO_DATOS, "w", encoding="utf-8") as f:
-            json.dump(datos, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"❌ Error guardando en disco seguro: {e}")
-
-def cargar_datos_disco():
-    global sorteos_db, boletos_db, clientes_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados
-    if os.path.exists(ARCHIVO_DATOS):
-        try:
-            with open(ARCHIVO_DATOS, "r", encoding="utf-8") as f:
-                datos = json.load(f)
-                sorteos_db = datos.get("sorteos", sorteos_db)
-                boletos_db = datos.get("boletos", boletos_db)
-                clientes_db = datos.get("clientes", {})
-                contador_boletos_por_sorteo = {int(k): v for k, v in datos.get("contador_boletos", {1: 110}).items()}
-                lote_contador = datos.get("lote_contador", 1)
-                numeros_liberados = {int(k): v for k, v in datos.get("numeros_liberados", {})}
-                print("✅ Datos cargados correctamente desde el disco persistente.")
-        except Exception as e:
-            print(f"❌ Error leyendo datos del disco: {e}")
-
-cargar_datos_disco()
-
 bloqueo_compra = threading.Lock()
+SESIONES_WHATSAPP = {}
 
 @app.route("/")
 def index():
@@ -154,18 +201,18 @@ def admin_panel():
 
 @app.route("/api/sorteos", methods=["GET"])
 def obtener_sorteos():
-    activos = [s for s in sorteos_db if s["estado"] == "Activo"]
-    return jsonify({"sorteos": activos})
+    conn = get_db()
+    sorteos = conn.execute("SELECT * FROM sorteos WHERE estado = 'Activo'").fetchall()
+    conn.close()
+    return jsonify({"sorteos": [dict(s) for s in sorteos]})
 
 
 # ==========================================
-# PASO 1: RESERVA DE BOLETOS (WEB)
+# COMPRA WEB
 # ==========================================
 @app.route("/api/comprar", methods=["POST"])
 def comprar():
-    global lote_contador
     data = request.json
-    
     sorteo_id = int(data.get("sorteo_id", 1))
     nombre = data.get("nombre")
     telefono = data.get("telefono")
@@ -178,56 +225,50 @@ def comprar():
         return jsonify({"error": "Todos los campos son obligatorios."}), 400
 
     with bloqueo_compra:
-        clientes_db[telefono] = {"nombre": nombre, "cedula": cedula}
-
-        sorteo_activo = next((s for s in sorteos_db if s["id"] == sorteo_id and s["estado"] == "Activo"), None)
-        if not sorteo_activo:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("INSERT OR REPLACE INTO clientes (telefono, nombre, cedula) VALUES (?, ?, ?)", (telefono, nombre, cedula))
+        
+        sorteo = cursor.execute("SELECT * FROM sorteos WHERE id = ? AND estado = 'Activo'", (sorteo_id,)).fetchone()
+        if not sorteo:
+            conn.close()
             return jsonify({"error": "El sorteo seleccionado ya no está activo."}), 400
 
-        total_activos = len([b for b in boletos_db if b["sorteo_id"] == sorteo_id])
-        if (total_activos + cantidad) > sorteo_activo["limite_boletos"]:
+        total_activos = cursor.execute("SELECT COUNT(*) FROM boletos WHERE sorteo_id = ?", (sorteo_id,)).fetchone()[0]
+        if (total_activos + cantidad) > sorteo["limite_boletos"]:
+            conn.close()
             return jsonify({"error": "No hay suficientes boletos disponibles para esa cantidad."}), 400
 
-        current_lote = lote_contador
-        lote_contador += 1
+        lote_row = cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'").fetchone()
+        current_lote = int(lote_row["valor"]) if lote_row else 1
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('lote_contador', ?)", (str(current_lote + 1),))
 
         nuevos_boletos_ids = []
-        if sorteo_id not in numeros_liberados:
-            numeros_liberados[sorteo_id] = []
-
         for _ in range(cantidad):
-            if numeros_liberados[sorteo_id]:
-                numeros_liberados[sorteo_id].sort()
-                num_boleto = numeros_liberados[sorteo_id].pop(0)
+            liberado = cursor.execute("SELECT numero FROM numeros_liberados WHERE sorteo_id = ? ORDER BY numero ASC LIMIT 1", (sorteo_id,)).fetchone()
+            if liberado:
+                num_boleto = liberado["numero"]
+                cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
             else:
-                num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 110)
-                contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
+                cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
+                num_boleto = int(cont_row["valor"]) if cont_row else 126
+                cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
             nuevos_boletos_ids.append(num_boleto)
 
         for num_boleto in nuevos_boletos_ids:
-            nuevo_boleto = {
-                "id": num_boleto,
-                "sorteo_id": sorteo_id,
-                "lote_id": current_lote,
-                "nombre": nombre,
-                "telefono": telefono,
-                "cedula": cedula,
-                "cantidad_lote": cantidad,
-                "imagen_comprobante": "",
-                "metodo_pago": metodo_pago,
-                "detalle_pago": detalle_pago,
-                "estado": "Pendiente",
-                "impreso": False,
-            }
-            boletos_db.append(nuevo_boleto)
+            cursor.execute('''
+                INSERT INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 0)
+            ''', (num_boleto, sorteo_id, current_lote, nombre, telefono, cedula, cantidad, "", metodo_pago, detalle_pago))
 
-        lotes_pendientes[current_lote] = {
-            "telefono": telefono,
-            "tiempo_reserva": time.time(),
-            "recordatorio_enviado": False
-        }
+        cursor.execute('''
+            INSERT OR REPLACE INTO lotes_pendientes (lote_id, telefono, tiempo_reserva, recordatorio_enviado)
+            VALUES (?, ?, ?, 0)
+        ''', (current_lote, telefono, time.time()))
 
-        guardar_datos_disco()
+        conn.commit()
+        conn.close()
 
     rango_str = (
         f"#{str(nuevos_boletos_ids[0]).zfill(5)}"
@@ -242,9 +283,6 @@ def comprar():
     }), 200
 
 
-# ==========================================
-# PASO 2: SUBIR COMPROBANTE AL LOTE EXISTENTE
-# ==========================================
 @app.route("/api/subir-comprobante", methods=["POST"])
 def subir_comprobante():
     data = request.json
@@ -255,38 +293,40 @@ def subir_comprobante():
         return jsonify({"error": "Faltan datos del lote o la imagen."}), 400
 
     with bloqueo_compra:
-        actualizados = 0
-        for b in boletos_db:
-            if b["lote_id"] == int(lote_id):
-                b["imagen_comprobante"] = imagen_comprobante
-                actualizados += 1
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE boletos SET imagen_comprobante = ? WHERE lote_id = ?", (imagen_comprobante, lote_id))
+        cursor.execute("DELETE FROM lotes_pendientes WHERE lote_id = ?", (lote_id,))
+        conn.commit()
+        conn.close()
 
-        if actualizados > 0:
-            if int(lote_id) in lotes_pendientes:
-                del lotes_pendientes[int(lote_id)]
-            guardar_datos_disco()
-            return jsonify({"mensaje": "¡Comprobante adjuntado correctamente al lote!"}), 200
-        else:
-            return jsonify({"error": "Lote no encontrado."}), 404
+    return jsonify({"mensaje": "¡Comprobante adjuntado correctamente al lote!"}), 200
 
 
 @app.route("/api/consultar", methods=["POST"])
 def consultar():
     data = request.json
     termino = data.get("termino")
-    resultados = [b for b in boletos_db if b["telefono"] == termino or b["cedula"] == termino]
-    if not resultados:
+    conn = get_db()
+    boletos = conn.execute("SELECT * FROM boletos WHERE telefono = ? OR cedula = ?", (termino, termino)).fetchall()
+    
+    if not boletos:
+        conn.close()
         return jsonify({"encontrado": False, "mensaje": "No se encontraron boletos."}), 404
 
-    for b in resultados:
-        s = next((item for item in sorteos_db if item["id"] == b["sorteo_id"]), None)
-        b["sorteo_titulo"] = s["titulo"] if s else "Sorteo General"
-
+    resultados = []
+    for b in boletos:
+        b_dict = dict(b)
+        sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (b_dict["sorteo_id"],)).fetchone()
+        b_dict["sorteo_titulo"] = sorteo["titulo"] if sorteo else "Sorteo General"
+        resultados.append(b_dict)
+        
+    conn.close()
     return jsonify({"encontrado": True, "boletos": resultados}), 200
 
 
 # ==========================================
-# WEBHOOK DEL BOT DE WHATSAPP (GREEN API)
+# WEBHOOK WHATSAPP (GREEN API)
 # ==========================================
 @app.route("/api/webhook/whatsapp", methods=["POST"])
 def webhook_whatsapp():
@@ -327,29 +367,24 @@ def webhook_whatsapp():
         sesion = SESIONES_WHATSAPP[telefono]
         paso = sesion["paso"]
 
+        conn = get_db()
+        sorteo = conn.execute("SELECT * FROM sorteos WHERE estado = 'Activo' LIMIT 1").fetchone()
+        conn.close()
+
         if "hola" in mensaje_lower or paso == "INICIO":
             sesion["paso"] = "ESPERANDO_CANTIDAD"
-            sorteo = sorteos_db[0]
             url_flyer = request.host_url.rstrip("/").replace("http://", "https://") + url_for("static", filename="flyer_sorteo.jpg")
             caption = (
                 f"¡Hola! Bienvenido a *VIFRAN GROUP S.A.* 🍀\nTu suerte, nuestro compromiso.\n\n"
-                f"🏆 *Sorteo:* {sorteo['titulo']}\n💵 *Valor del ticket:* Gs. {sorteo['precio']:,}\n\n"
+                f"🏆 *Sorteo:* {sorteo['titulo'] if sorteo else 'Sorteo'}\n💵 *Valor del ticket:* Gs. {sorteo['precio'] if sorteo else 10000:,}\n\n"
                 "¿Cuántos boletos te gustaría reservar?\n*(Responde únicamente con el número, ej: '2')*"
             )
             enviar_imagen_whatsapp(telefono, url_flyer, caption)
 
         elif paso == "ESPERANDO_CANTIDAD" and mensaje.isdigit():
             cantidad = int(mensaje)
-            sorteo = sorteos_db[0]
-            
-            total_activos = len([b for b in boletos_db if b["sorteo_id"] == sorteo["id"]])
-            if (total_activos + cantidad) > sorteo["limite_boletos"]:
-                enviar_mensaje_whatsapp(telefono, "❌ Lo sentimos, no hay suficientes boletos disponibles para esa cantidad.")
-                sesion["paso"] = "INICIO"
-                return jsonify({"status": "ok"}), 200
-
             sesion["datos"]["cantidad"] = cantidad
-            total = cantidad * sorteo["precio"]
+            total = cantidad * (sorteo['precio'] if sorteo else 10000)
 
             sesion["paso"] = "ESPERANDO_DATOS_CLIENTE"
             enviar_mensaje_whatsapp(
@@ -372,57 +407,47 @@ def webhook_whatsapp():
             sesion["datos"]["cedula"] = cedula_cliente
 
             with bloqueo_compra:
-                clientes_db[telefono] = {"nombre": nombre_cliente, "cedula": cedula_cliente}
-
-                sorteo = sorteos_db[0]
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR REPLACE INTO clientes (telefono, nombre, cedula) VALUES (?, ?, ?)", (telefono, nombre_cliente, cedula_cliente))
+                
+                sorteo_id = sorteo["id"] if sorteo else 1
                 cantidad = sesion["datos"]["cantidad"]
 
-                global lote_contador
-                current_lote = lote_contador
-                lote_contador += 1
+                lote_row = cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'").fetchone()
+                current_lote = int(lote_row["valor"]) if lote_row else 1
+                cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('lote_contador', ?)", (str(current_lote + 1),))
 
                 nuevos_boletos_ids = []
-                if sorteo["id"] not in numeros_liberados:
-                    numeros_liberados[sorteo["id"]] = []
-
                 for _ in range(cantidad):
-                    if numeros_liberados[sorteo["id"]]:
-                        numeros_liberados[sorteo["id"]].sort()
-                        num_boleto = numeros_liberados[sorteo["id"]].pop(0)
+                    liberado = cursor.execute("SELECT numero FROM numeros_liberados WHERE sorteo_id = ? ORDER BY numero ASC LIMIT 1", (sorteo_id,)).fetchone()
+                    if liberado:
+                        num_boleto = liberado["numero"]
+                        cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                     else:
-                        num_boleto = contador_boletos_por_sorteo.get(sorteo["id"], 110)
-                        contador_boletos_por_sorteo[sorteo["id"]] = num_boleto + 1
+                        cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
+                        num_boleto = int(cont_row["valor"]) if cont_row else 126
+                        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                     nuevos_boletos_ids.append(num_boleto)
 
                 numeros_str = []
                 for num_boleto in nuevos_boletos_ids:
-                    nuevo_boleto = {
-                        "id": num_boleto,
-                        "sorteo_id": sorteo["id"],
-                        "lote_id": current_lote,
-                        "nombre": nombre_cliente,
-                        "telefono": telefono,
-                        "cedula": cedula_cliente,
-                        "cantidad_lote": cantidad,
-                        "imagen_comprobante": "",
-                        "metodo_pago": "WhatsApp / ueno",
-                        "detalle_pago": "Transferencia Directa",
-                        "estado": "Pendiente",
-                        "impreso": False,
-                    }
-                    boletos_db.append(nuevo_boleto)
+                    cursor.execute('''
+                        INSERT INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 0)
+                    ''', (num_boleto, sorteo_id, current_lote, nombre_cliente, telefono, cedula_cliente, cantidad, "", "WhatsApp / ueno", "Transferencia Directa"))
                     numeros_str.append(str(num_boleto).zfill(5))
 
-                sesion["datos"]["lote_id"] = current_lote
-                sesion["datos"]["numeros"] = numeros_str
+                cursor.execute('''
+                    INSERT OR REPLACE INTO lotes_pendientes (lote_id, telefono, tiempo_reserva, recordatorio_enviado)
+                    VALUES (?, ?, ?, 0)
+                ''', (current_lote, telefono, time.time()))
 
-                lotes_pendientes[current_lote] = {
-                    "telefono": telefono,
-                    "tiempo_reserva": time.time(),
-                    "recordatorio_enviado": False
-                }
+                conn.commit()
+                conn.close()
 
-                guardar_datos_disco()
+            sesion["datos"]["lote_id"] = current_lote
+            sesion["datos"]["numeros"] = numeros_str
 
             sesion["paso"] = "ESPERANDO_COMPROBANTE"
             enviar_mensaje_whatsapp(
@@ -438,14 +463,12 @@ def webhook_whatsapp():
 
             if current_lote:
                 with bloqueo_compra:
-                    for b in boletos_db:
-                        if b["lote_id"] == current_lote:
-                            b["imagen_comprobante"] = download_url
-                    
-                    if current_lote in lotes_pendientes:
-                        del lotes_pendientes[current_lote]
-                    
-                    guardar_datos_disco()
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE boletos SET imagen_comprobante = ? WHERE lote_id = ?", (download_url, current_lote))
+                    cursor.execute("DELETE FROM lotes_pendientes WHERE lote_id = ?", (current_lote,))
+                    conn.commit()
+                    conn.close()
 
             enviar_mensaje_whatsapp(
                 telefono,
@@ -460,17 +483,18 @@ def webhook_whatsapp():
 
 
 # ==========================================
-# GENERADOR DE IMAGEN DIGITAL DE TICKET CON QR
+# GENERADOR DE TICKET DIGITAL CON QR
 # ==========================================
 def crear_imagen_boleto_memoria(boleto_id, host_url):
-    boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto: return None
+    conn = get_db()
+    boleto = conn.execute("SELECT * FROM boletos WHERE id = ?", (boleto_id,)).fetchone()
+    if not boleto:
+        conn.close()
+        return None
+    sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (boleto["sorteo_id"],)).fetchone()
+    conn.close()
 
-    sorteo_titulo = "Sorteo de 4 iPhones"
-    for s in sorteos_db:
-        if s["id"] == boleto["sorteo_id"]:
-            sorteo_titulo = s["titulo"]
-            break
+    sorteo_titulo = sorteo["titulo"] if sorteo else "Sorteo de 4 iPhones"
 
     ancho, alto = 420, 580
     img = Image.new("RGB", (ancho, alto), color="white")
@@ -491,7 +515,7 @@ def crear_imagen_boleto_memoria(boleto_id, host_url):
     d.text((20, 90), f"RUC/CI: {boleto['cedula']} | TEL: {boleto['telefono']}", fill="black", font=font_texto)
     d.line([(20, 115), (ancho - 20, 115)], fill="black", width=1)
     d.text((20, 130), f"EDICION: {sorteo_titulo}", fill="black", font=font_texto)
-    d.text((20, 155), f"PAGO: {boleto.get('metodo_pago', 'Directo')}", fill="black", font=font_texto)
+    d.text((20, 155), f"PAGO: {boleto['metodo_pago']}", fill="black", font=font_texto)
     d.line([(20, 180), (ancho - 20, 180)], fill="black", width=1)
     d.text((ancho / 2, 210), f"NRO: #{str(boleto['id']).zfill(5)}", fill="black", anchor="mm", font=font_grande)
     d.line([(20, 240), (ancho - 20, 240)], fill="black", width=1)
@@ -520,10 +544,14 @@ def obtener_ticket_imagen(boleto_id):
 
 @app.route("/validar/<int:boleto_id>")
 def validar_boleto_qr(boleto_id):
-    boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-    if not boleto: return "<h3>Boleto no encontrado</h3>", 404
+    conn = get_db()
+    boleto = conn.execute("SELECT * FROM boletos WHERE id = ?", (boleto_id,)).fetchone()
+    if not boleto:
+        conn.close()
+        return "<h3>Boleto no encontrado</h3>", 404
+    sorteo = conn.execute("SELECT * FROM sorteos WHERE id = ?", (boleto["sorteo_id"],)).fetchone()
+    conn.close()
 
-    sorteo = next((s for s in sorteos_db if s["id"] == boleto["sorteo_id"]), {"titulo": "Sorteo General", "precio": 10000})
     estado_color = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" if boleto["estado"] == "Aprobado" else "text-amber-400 bg-amber-500/10 border-amber-500/30"
 
     return f"""
@@ -534,7 +562,7 @@ def validar_boleto_qr(boleto_id):
             <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 max-w-md w-full space-y-6 text-center">
                 <h1 class="text-xl font-black text-amber-400">VIFRAN GROUP S.A.</h1>
                 <span class="text-3xl font-black text-amber-400 block">#{str(boleto['id']).zfill(5)}</span>
-                <p class="text-sm font-bold">{sorteo['titulo']}</p>
+                <p class="text-sm font-bold">{sorteo['titulo'] if sorteo else 'Sorteo General'}</p>
                 <p class="text-xs text-slate-300">Cliente: {boleto['nombre']} (CI: {boleto['cedula']})</p>
                 <span class="inline-block px-4 py-1.5 rounded-xl text-xs font-bold border {estado_color}">Estado: {boleto['estado']}</span>
             </div>
@@ -544,7 +572,7 @@ def validar_boleto_qr(boleto_id):
 
 
 # ==========================================
-# API DE ADMINISTRACIÓN
+# ADMINISTRACIÓN
 # ==========================================
 def verificar_admin(data):
     return data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password")
@@ -552,51 +580,52 @@ def verificar_admin(data):
 @app.route("/api/admin/datos", methods=["POST"])
 def admin_datos():
     if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
-    return jsonify({"sorteos": sorteos_db, "boletos": boletos_db, "total_clientes": len(clientes_db)})
+    conn = get_db()
+    sorteos = conn.execute("SELECT * FROM sorteos").fetchall()
+    boletos = conn.execute("SELECT * FROM boletos").fetchall()
+    total_clientes = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+    conn.close()
+    return jsonify({
+        "sorteos": [dict(s) for s in sorteos],
+        "boletos": [dict(b) for b in boletos],
+        "total_clientes": total_clientes
+    })
 
 @app.route("/api/admin/crear-sorteo", methods=["POST"])
 def admin_crear_sorteo():
     data = request.json
     if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     with bloqueo_compra:
-        nuevo_id = len(sorteos_db) + 1
-        nuevo_sorteo = {
-            "id": nuevo_id, "titulo": data.get("titulo"), 
-            "precio": int(data.get("precio", 10000)), 
-            "limite_boletos": int(data.get("limite_boletos", 1000)), 
-            "estado": "Activo"
-        }
-        sorteos_db.append(nuevo_sorteo)
-        contador_boletos_por_sorteo[nuevo_id] = 1
-        guardar_datos_disco()
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO sorteos (titulo, precio, limite_boletos, estado, imagen_nombre)
+            VALUES (?, ?, ?, 'Activo', 'flyer_sorteo.jpg')
+        ''', (data.get("titulo"), int(data.get("precio", 10000)), int(data.get("limite_boletos", 1000))))
+        nuevo_id = cursor.lastrowid
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "126"))
+        conn.commit()
+        nuevo_sorteo = dict(cursor.execute("SELECT * FROM sorteos WHERE id = ?", (nuevo_id,)).fetchone())
+        conn.close()
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
 @app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
 def admin_finalizar_sorteo(sorteo_id):
     data = request.json
-    if not verificar_admin(data): 
-        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
-    
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     with bloqueo_compra:
-        encontrado = False
-        for s in sorteos_db:
-            if s["id"] == sorteo_id:
-                s["estado"] = "Finalizado"
-                encontrado = True
-                break
-        
-        if encontrado:
-            guardar_datos_disco()
-            return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
-        else:
-            return jsonify({"error": "Sorteo no encontrado"}), 404
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE sorteos SET estado = 'Finalizado' WHERE id = ?", (sorteo_id,))
+        conn.commit()
+        conn.close()
+    return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
 
-# RUTA: AGREGAR BOLETOS MANUALMENTE HASTA EL 109 (MARCADOS COMO IMPRESOS PARA QUE NO SALGAN EN COLA)
+# RUTA: CARGA MANUAL HASTA 125 (APROBADOS Y MARCADOS COMO IMPRESOS PARA QUE NO ENVIÉN NADA)
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
-    if not verificar_admin(data): 
-        return jsonify({"error": "No autorizado"}), 401
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     
     sorteo_id = int(data.get("sorteo_id", 1))
     nombre = data.get("nombre")
@@ -609,15 +638,14 @@ def admin_agregar_manual():
         return jsonify({"error": "El nombre y la cantidad son obligatorios."}), 400
 
     with bloqueo_compra:
-        global lote_contador
-        current_lote = lote_contador
-        lote_contador += 1
-
-        if sorteo_id not in numeros_liberados:
-            numeros_liberados[sorteo_id] = []
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        lote_row = cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'").fetchone()
+        current_lote = int(lote_row["valor"]) if lote_row else 1
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('lote_contador', ?)", (str(current_lote + 1),))
 
         nuevos_boletos_ids = []
-        
         if inicio_personalizado is not None and str(inicio_personalizado).strip() != "":
             num_actual = int(inicio_personalizado)
             for _ in range(cantidad):
@@ -625,119 +653,125 @@ def admin_agregar_manual():
                 num_actual += 1
         else:
             for _ in range(cantidad):
-                if numeros_liberados[sorteo_id]:
-                    numeros_liberados[sorteo_id].sort()
-                    num_boleto = numeros_liberados[sorteo_id].pop(0)
+                liberado = cursor.execute("SELECT numero FROM numeros_liberados WHERE sorteo_id = ? ORDER BY numero ASC LIMIT 1", (sorteo_id,)).fetchone()
+                if liberado:
+                    num_boleto = liberado["numero"]
+                    cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                 else:
-                    num_boleto = contador_boletos_por_sorteo.get(sorteo_id, 110)
-                    contador_boletos_por_sorteo[sorteo_id] = num_boleto + 1
+                    cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
+                    num_boleto = int(cont_row["valor"]) if cont_row else 126
+                    cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                 nuevos_boletos_ids.append(num_boleto)
 
+        max_num = max(nuevos_boletos_ids)
+        cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
+        actual_cont = int(cont_row["valor"]) if cont_row else 126
+        if max_num >= actual_cont:
+            cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(max_num + 1)))
+
         for num_boleto in nuevos_boletos_ids:
-            nuevo_boleto = {
-                "id": num_boleto,
-                "sorteo_id": sorteo_id,
-                "lote_id": current_lote,
-                "nombre": nombre,
-                "telefono": telefono,
-                "cedula": cedula,
-                "cantidad_lote": cantidad,
-                "imagen_comprobante": "Carga Manual",
-                "metodo_pago": "Manual (Recuperación)",
-                "detalle_pago": "Carga interna",
-                "estado": "Aprobado", 
-                "impreso": True,  # Ya nacen marcados como impresos para no ir a la cola
-            }
-            boletos_db.append(nuevo_boleto)
+            cursor.execute('''
+                INSERT OR REPLACE INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'Carga Manual', 'Manual (Recuperación)', 'Carga interna', 'Aprobado', 1)
+            ''', (num_boleto, sorteo_id, current_lote, nombre, telefono, cedula, cantidad))
 
-        guardar_datos_disco()
+        conn.commit()
+        conn.close()
 
-    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (desde el #{nuevos_boletos_ids[0]}) para {nombre}!"}), 200
+    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (desde el #{nuevos_boletos_ids[0]}) para {nombre} sin notificación!"}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
     if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
-    aprobados = 0
     host_actual = request.host_url
     with bloqueo_compra:
-        for b in boletos_db:
-            if b["lote_id"] == lote_id and b["estado"] == "Pendiente":
-                b["estado"] = "Aprobado"
-                b["impreso"] = False  
-                aprobados += 1
-                sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-                caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {sorteo['titulo']}\nA: Gs. {sorteo['precio']:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
-                enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
+        conn = get_db()
+        cursor = conn.cursor()
+        boletos_lote = cursor.execute("SELECT * FROM boletos WHERE lote_id = ? AND estado = 'Pendiente'", (lote_id,)).fetchall()
+        
+        if not boletos_lote:
+            conn.close()
+            return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
 
-        if aprobados > 0: 
-            guardar_datos_disco()
-            return jsonify({"mensaje": f"¡Lote aprobado con éxito ({aprobados} boletos)!"})
-    return jsonify({"error": "Lote no encontrado o ya aprobado"}), 404
+        cursor.execute("UPDATE boletos SET estado = 'Aprobado', impreso = 0 WHERE lote_id = ?", (lote_id,))
+        conn.commit()
+        conn.close()
 
+        for b in boletos_lote:
+            conn2 = get_db()
+            sorteo = conn2.execute("SELECT * FROM sorteos WHERE id = ?", (b["sorteo_id"],)).fetchone()
+            conn2.close()
+            precio = sorteo["precio"] if sorteo else 10000
+            titulo = sorteo["titulo"] if sorteo else "Sorteo General"
+            caption = f"✨ *¡Pago Verificado y Boleto Emitido!*\n\nCLIENTE: {b['nombre']}\nRUC/CI: {b['cedula']}\nEDICION: {titulo}\nA: Gs. {precio:,}\nNRO: #{str(b['id']).zfill(5)}\n\n🍀 *¡Muchísima suerte con VIFRAN GROUP S.A.!*"
+            enviar_ticket_directo(b['telefono'], b['id'], host_actual, caption)
 
-# ==========================================
-# NUEVO: RUTA PARA ELIMINAR / LIBERAR LOTE PENDIENTE
-# ==========================================
+    return jsonify({"mensaje": f"¡Lote aprobado con éxito ({len(boletos_lote)} boletos)!"}), 200
+
 @app.route("/api/admin/eliminar-lote/<int:lote_id>", methods=["POST"])
 def admin_eliminar_lote(lote_id):
     data = request.json or {}
-    if not verificar_admin(data): 
-        return jsonify({"error": "No autorizado"}), 401
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     
     with bloqueo_compra:
-        global boletos_db, numeros_liberados, lotes_pendientes
-        
-        boletos_a_eliminar = [b for b in boletos_db if b["lote_id"] == lote_id and b["estado"] == "Pendiente"]
+        conn = get_db()
+        cursor = conn.cursor()
+        boletos_a_eliminar = cursor.execute("SELECT * FROM boletos WHERE lote_id = ? AND estado = 'Pendiente'", (lote_id,)).fetchall()
         
         if not boletos_a_eliminar:
+            conn.close()
             return jsonify({"error": "Lote no encontrado o ya fue aprobado."}), 404
         
         sorteo_id = boletos_a_eliminar[0]["sorteo_id"]
-        
-        if sorteo_id not in numeros_liberados:
-            numeros_liberados[sorteo_id] = []
-            
         for b in boletos_a_eliminar:
-            numeros_liberados[sorteo_id].append(b["id"])
+            cursor.execute("INSERT OR IGNORE INTO numeros_liberados (sorteo_id, numero) VALUES (?, ?)", (sorteo_id, b["id"]))
             
-        boletos_db = [b for b in boletos_db if not (b["lote_id"] == lote_id and b["estado"] == "Pendiente")]
-        
-        if lote_id in lotes_pendientes:
-            del lotes_pendientes[lote_id]
-            
-        guardar_datos_disco()
+        cursor.execute("DELETE FROM boletos WHERE lote_id = ? AND estado = 'Pendiente'", (lote_id,))
+        cursor.execute("DELETE FROM lotes_pendientes WHERE lote_id = ?", (lote_id,))
+        conn.commit()
+        conn.close()
         
     return jsonify({"mensaje": f"¡Lote #{lote_id} eliminado y números liberados con éxito!"}), 200
 
-
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
-    pendientes, lotes_procesados = [], set()
-    with bloqueo_compra:
-        for b in boletos_db:
-            if b["estado"] == "Aprobado" and not b.get("impreso", False) and b["lote_id"] not in lotes_procesados:
-                lotes_procesados.add(b["lote_id"])
-                sorteo = next((s for s in sorteos_db if s["id"] == b["sorteo_id"]), sorteos_db[0])
-                pendientes.append({"id": b["lote_id"], "sorteo_titulo": sorteo["titulo"], "nombre": b["nombre"], "cedula": b["cedula"], "telefono": b["telefono"], "numeros_asignados": [str(x["id"]).zfill(5) for x in boletos_db if x["lote_id"] == b["lote_id"]]})
+    conn = get_db()
+    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0").fetchall()
+    
+    pendientes = []
+    lotes_procesados = set()
+    for b in boletos_aprobados:
+        if b["lote_id"] not in lotes_procesados:
+            lotes_procesados.add(b["lote_id"])
+            sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (b["sorteo_id"],)).fetchone()
+            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ?", (b["lote_id"],)).fetchall()
+            pendientes.append({
+                "id": b["lote_id"],
+                "sorteo_titulo": sorteo["titulo"] if sorteo else "Sorteo General",
+                "nombre": b["nombre"],
+                "cedula": b["cedula"],
+                "telefono": b["telefono"],
+                "numeros_asignados": [str(x["id"]).zfill(5) for x in nums]
+            })
+    conn.close()
     return jsonify(pendientes), 200
 
 @app.route("/api/marcar-impreso/<int:lote_id>", methods=["POST"])
 def marcar_como_impreso(lote_id):
-    with bloqueo_compra:
-        for b in boletos_db:
-            if b["lote_id"] == lote_id: b["impreso"] = True
-        guardar_datos_disco()
+    conn = get_db()
+    conn.execute("UPDATE boletos SET impreso = 1 WHERE lote_id = ?", (lote_id,))
+    conn.commit()
+    conn.close()
     return jsonify({"status": "success"}), 200
 
 @app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
 def api_reimprimir(boleto_id):
     data = request.json
     if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
-    with bloqueo_compra:
-        boleto = next((b for b in boletos_db if b["id"] == boleto_id), None)
-        if not boleto: return jsonify({"error": "Boleto no encontrado"}), 404
-        boleto["impreso"] = False
-        guardar_datos_disco()
+    conn = get_db()
+    conn.execute("UPDATE boletos SET impreso = 0 WHERE id = ?", (boleto_id,))
+    conn.commit()
+    conn.close()
     return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora."}), 200
 
 @app.route("/api/admin/limpiar-pruebas", methods=["POST"])
@@ -745,15 +779,15 @@ def limpiar_pruebas():
     data = request.json
     if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
     with bloqueo_compra:
-        global boletos_db, contador_boletos_por_sorteo, lote_contador, numeros_liberados, lotes_pendientes
-        boletos_db = []
-        contador_boletos_por_sorteo = {s["id"]: 1 for s in sorteos_db}
-        lote_contador = 1
-        numeros_liberados = {}
-        lotes_pendientes = {}
-        if os.path.exists(ARCHIVO_DATOS):
-            try: os.remove(ARCHIVO_DATOS)
-            except: pass
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM boletos")
+        cursor.execute("DELETE FROM lotes_pendientes")
+        cursor.execute("DELETE FROM numeros_liberados")
+        cursor.execute("UPDATE config SET valor = '126' WHERE clave LIKE 'contador_%'")
+        cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
+        conn.commit()
+        conn.close()
     return jsonify({"mensaje": "¡Sistema limpiado con éxito!"}), 200
 
 @app.route("/impresion")
