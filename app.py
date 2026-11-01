@@ -149,18 +149,8 @@ def init_db():
         )
     ''')
     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS lotes_pendientes (
-            lote_id INTEGER PRIMARY KEY,
-            telefono TEXT,
-            tiempo_reserva REAL,
-            recordatorio_enviado INTEGER
-        )
-    ''')
-    
     conn.commit()
     
-    # Sorteo por defecto
     cursor.execute('SELECT COUNT(*) FROM sorteos')
     if cursor.fetchone()[0] == 0:
         cursor.execute('''
@@ -262,11 +252,6 @@ def comprar():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 0)
             ''', (num_boleto, sorteo_id, current_lote, nombre, telefono, cedula, cantidad, "", metodo_pago, detalle_pago))
 
-        cursor.execute('''
-            INSERT OR REPLACE INTO lotes_pendientes (lote_id, telefono, tiempo_reserva, recordatorio_enviado)
-            VALUES (?, ?, ?, 0)
-        ''', (current_lote, telefono, time.time()))
-
         conn.commit()
         conn.close()
 
@@ -296,7 +281,6 @@ def subir_comprobante():
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("UPDATE boletos SET imagen_comprobante = ? WHERE lote_id = ?", (imagen_comprobante, lote_id))
-        cursor.execute("DELETE FROM lotes_pendientes WHERE lote_id = ?", (lote_id,))
         conn.commit()
         conn.close()
 
@@ -308,7 +292,7 @@ def consultar():
     data = request.json
     termino = data.get("termino")
     conn = get_db()
-    boletos = conn.execute("SELECT * FROM boletos WHERE telefono = ? OR cedula = ?", (termino, termino)).fetchall()
+    boletos = conn.execute("SELECT * FROM boletos WHERE telefono = ? OR cedula = ? ORDER BY id ASC", (termino, termino)).fetchall()
     
     if not boletos:
         conn.close()
@@ -438,11 +422,6 @@ def webhook_whatsapp():
                     ''', (num_boleto, sorteo_id, current_lote, nombre_cliente, telefono, cedula_cliente, cantidad, "", "WhatsApp / ueno", "Transferencia Directa"))
                     numeros_str.append(str(num_boleto).zfill(5))
 
-                cursor.execute('''
-                    INSERT OR REPLACE INTO lotes_pendientes (lote_id, telefono, tiempo_reserva, recordatorio_enviado)
-                    VALUES (?, ?, ?, 0)
-                ''', (current_lote, telefono, time.time()))
-
                 conn.commit()
                 conn.close()
 
@@ -466,7 +445,6 @@ def webhook_whatsapp():
                     conn = get_db()
                     cursor = conn.cursor()
                     cursor.execute("UPDATE boletos SET imagen_comprobante = ? WHERE lote_id = ?", (download_url, current_lote))
-                    cursor.execute("DELETE FROM lotes_pendientes WHERE lote_id = ?", (current_lote,))
                     conn.commit()
                     conn.close()
 
@@ -582,7 +560,7 @@ def admin_datos():
     if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
     conn = get_db()
     sorteos = conn.execute("SELECT * FROM sorteos").fetchall()
-    boletos = conn.execute("SELECT * FROM boletos").fetchall()
+    boletos = conn.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
     total_clientes = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
     conn.close()
     return jsonify({
@@ -621,7 +599,7 @@ def admin_finalizar_sorteo(sorteo_id):
         conn.close()
     return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
 
-# RUTA: CARGA MANUAL HASTA 125 (APROBADOS Y MARCADOS COMO IMPRESOS PARA QUE NO ENVIÉN NADA)
+# RUTA: CARGA MANUAL DE CUALQUIER RANGO (ORDENA AUTOMÁTICAMENTE Y NO NOTIFICA)
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -678,7 +656,7 @@ def admin_agregar_manual():
         conn.commit()
         conn.close()
 
-    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (desde el #{nuevos_boletos_ids[0]}) para {nombre} sin notificación!"}), 200
+    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (del #{nuevos_boletos_ids[0]} al #{nuevos_boletos_ids[-1]}) para {nombre} y ordenados con éxito!"}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
@@ -727,7 +705,6 @@ def admin_eliminar_lote(lote_id):
             cursor.execute("INSERT OR IGNORE INTO numeros_liberados (sorteo_id, numero) VALUES (?, ?)", (sorteo_id, b["id"]))
             
         cursor.execute("DELETE FROM boletos WHERE lote_id = ? AND estado = 'Pendiente'", (lote_id,))
-        cursor.execute("DELETE FROM lotes_pendientes WHERE lote_id = ?", (lote_id,))
         conn.commit()
         conn.close()
         
@@ -736,7 +713,7 @@ def admin_eliminar_lote(lote_id):
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     conn = get_db()
-    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0").fetchall()
+    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 ORDER BY id ASC").fetchall()
     
     pendientes = []
     lotes_procesados = set()
@@ -744,7 +721,7 @@ def obtener_pendientes_impresion():
         if b["lote_id"] not in lotes_procesados:
             lotes_procesados.add(b["lote_id"])
             sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (b["sorteo_id"],)).fetchone()
-            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ?", (b["lote_id"],)).fetchall()
+            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? ORDER BY id ASC", (b["lote_id"],)).fetchall()
             pendientes.append({
                 "id": b["lote_id"],
                 "sorteo_titulo": sorteo["titulo"] if sorteo else "Sorteo General",
@@ -782,7 +759,6 @@ def limpiar_pruebas():
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM boletos")
-        cursor.execute("DELETE FROM lotes_pendientes")
         cursor.execute("DELETE FROM numeros_liberados")
         cursor.execute("UPDATE config SET valor = '126' WHERE clave LIKE 'contador_%'")
         cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
