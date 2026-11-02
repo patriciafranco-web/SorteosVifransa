@@ -151,6 +151,10 @@ def init_db():
     
     conn.commit()
     
+    # Asegurar que los boletos 1 y 2 (o cargas manuales) nunca se impriman ni envíen WhatsApp
+    cursor.execute("UPDATE boletos SET impreso = 1 WHERE id IN (1, 2) OR metodo_pago LIKE '%Manual%' OR metodo_pago LIKE '%Recuperación%'")
+    conn.commit()
+    
     cursor.execute('SELECT COUNT(*) FROM sorteos')
     if cursor.fetchone()[0] == 0:
         cursor.execute('''
@@ -599,7 +603,7 @@ def admin_finalizar_sorteo(sorteo_id):
         conn.close()
     return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
 
-# RUTA: CARGA MANUAL DE CUALQUIER RANGO (ORDENA AUTOMÁTICAMENTE Y NO NOTIFICA)
+# RUTA: CARGA MANUAL (MARCADOS COMO IMPRESOS PARA QUE NO IMPRIMAN NI NOTIFIQUEN)
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -656,7 +660,7 @@ def admin_agregar_manual():
         conn.commit()
         conn.close()
 
-    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (del #{nuevos_boletos_ids[0]} al #{nuevos_boletos_ids[-1]}) para {nombre} y ordenados con éxito!"}), 200
+    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (del #{nuevos_boletos_ids[0]} al #{nuevos_boletos_ids[-1]}) para {nombre} sin notificación ni impresión!"}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
