@@ -91,8 +91,6 @@ else:
 DB_PATH = os.path.join(CARPETA_DATOS, "sorteos.db")
 BACKUP_PATH = os.path.join(CARPETA_LOCAL, "sorteos_respaldo.db")
 
-print(f"📂 [SISTEMA VIFRAN] Usando base de datos principal en: {os.path.abspath(DB_PATH)}")
-
 def respaldar_base_datos():
     try:
         if os.path.exists(DB_PATH) and DB_PATH != BACKUP_PATH:
@@ -175,10 +173,10 @@ def init_db():
     
     conn.commit()
     
-    # FORZAR ACTUALIZACIÓN DE ESTADOS EN CADA INICIO:
+    # REGLA FORZADA ABSOLUTA:
     # Del 1 al 125: Aprobados e impresos (impreso = 1) -> No imprimen ni notifican.
     cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
-    # Del 126 al 180: Aprobados pero sin imprimir (impreso = 0) -> Se imprimen al encender.
+    # Del 126 al 180: Aprobados pero con impreso = 0 -> Se imprimen al encender, sin WhatsApp.
     cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
     conn.commit()
     
@@ -580,11 +578,19 @@ def verificar_admin(data):
 @app.route("/api/admin/datos", methods=["POST"])
 def admin_datos():
     if not verificar_admin(request.json): return jsonify({"error": "No autorizado"}), 401
-    conn = get_db()
-    sorteos = conn.execute("SELECT * FROM sorteos").fetchall()
-    boletos = conn.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
-    total_clientes = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-    conn.close()
+    
+    with bloqueo_compra:
+        conn_fix = get_db()
+        conn_fix.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
+        conn_fix.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
+        conn_fix.commit()
+        
+        sorteos = conn_fix.execute("SELECT * FROM sorteos").fetchall()
+        boletos = conn_fix.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
+        total_clientes = conn_fix.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+        conn_fix.close()
+        respaldar_base_datos()
+
     return jsonify({
         "sorteos": [dict(s) for s in sorteos],
         "boletos": [dict(b) for b in boletos],
