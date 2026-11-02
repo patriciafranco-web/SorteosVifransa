@@ -73,7 +73,6 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
             
     threading.Thread(target=tarea).start()
 
-
 CARPETA_DISCO = "/varidata"
 CARPETA_LOCAL = "."
 
@@ -143,7 +142,7 @@ def init_db():
             metodo_pago TEXT,
             detalle_pago TEXT,
             estado TEXT,
-            impreso INTEGER,
+            impreso ANY,
             PRIMARY KEY (id, sorteo_id)
         )
     ''')
@@ -173,9 +172,8 @@ def init_db():
     
     conn.commit()
     
-    # BLINDAJE ESTRICTO: Forzar impreso = 1 y estado 'Aprobado' para el rango 1 al 125
+    # Forzar reglas en base de datos
     cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
-    # Del 126 al 180: Aprobados pero impreso = 0 (se imprimirán al encender)
     cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
     conn.commit()
     
@@ -585,14 +583,23 @@ def admin_datos():
         conn_fix.commit()
         
         sorteos = conn_fix.execute("SELECT * FROM sorteos").fetchall()
-        boletos = conn_fix.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
+        boletos_raw = conn_fix.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
+        
+        boletos = []
+        for b in boletos_raw:
+            b_dict = dict(b)
+            # Forzamos directamente el booleano verdadero o string que lee el HTML
+            if b_dict['id'] <= 125:
+                b_dict['impreso'] = True
+            boletos.append(b_dict)
+
         total_clientes = conn_fix.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
         conn_fix.close()
         respaldar_base_datos()
 
     return jsonify({
         "sorteos": [dict(s) for s in sorteos],
-        "boletos": [dict(b) for b in boletos],
+        "boletos": boletos,
         "total_clientes": total_clientes
     })
 
@@ -747,7 +754,6 @@ def admin_eliminar_lote(lote_id):
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     conn = get_db()
-    # BLINDAJE: Excluir estrictamente cualquier boleto menor o igual a 125 para que nunca aparezca como pendiente de impresión
     boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 AND id > 125 ORDER BY id ASC").fetchall()
     
     pendientes = []
