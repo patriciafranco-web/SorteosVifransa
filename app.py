@@ -73,6 +73,9 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
             
     threading.Thread(target=tarea).start()
 
+# ==========================================
+# GESTIÓN SEGURA DE DISCO PERSISTENTE Y RESPALDO
+# ==========================================
 CARPETA_DISCO = "/varidata"
 CARPETA_LOCAL = "."
 
@@ -90,17 +93,21 @@ else:
 DB_PATH = os.path.join(CARPETA_DATOS, "sorteos.db")
 BACKUP_PATH = os.path.join(CARPETA_LOCAL, "sorteos_respaldo.db")
 
+print(f"📂 [VIFRAN DB] Ruta principal: {os.path.abspath(DB_PATH)}")
+
 def respaldar_base_datos():
+    """Crea una copia espejo de seguridad inmediata tras cada cambio"""
     try:
         if os.path.exists(DB_PATH) and DB_PATH != BACKUP_PATH:
             shutil.copy2(DB_PATH, BACKUP_PATH)
     except Exception as e:
-        print(f"⚠️ Error al crear respaldo secundario: {e}")
+        print(f"⚠️ Error al respaldar DB: {e}")
 
 def get_db():
     if not os.path.exists(DB_PATH) and os.path.exists(BACKUP_PATH):
         try:
             shutil.copy2(BACKUP_PATH, DB_PATH)
+            print("🔄 [VIFRAN DB] Base de datos recuperada desde el respaldo espejo.")
         except:
             pass
             
@@ -142,7 +149,7 @@ def init_db():
             metodo_pago TEXT,
             detalle_pago TEXT,
             estado TEXT,
-            impreso ANY,
+            impreso INTEGER,
             PRIMARY KEY (id, sorteo_id)
         )
     ''')
@@ -172,16 +179,19 @@ def init_db():
     
     conn.commit()
     
-    # Forzar reglas en base de datos
+    # REGLAS FIJAS:
     cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
     cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
+    
+    # ACTUALIZAR LÍMITE A 2000 BOLETOS EN EL SORTEO ACTIVO
+    cursor.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
     conn.commit()
     
     cursor.execute('SELECT COUNT(*) FROM sorteos')
     if cursor.fetchone()[0] == 0:
         cursor.execute('''
             INSERT INTO sorteos (id, titulo, precio, limite_boletos, estado, imagen_nombre)
-            VALUES (1, 'Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)', 10000, 1000, 'Activo', 'flyer_sorteo.jpg')
+            VALUES (1, 'Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)', 10000, 2000, 'Activo', 'flyer_sorteo.jpg')
         ''')
         conn.commit()
         
@@ -222,7 +232,6 @@ def obtener_sorteos():
     sorteos = conn.execute("SELECT * FROM sorteos WHERE estado = 'Activo'").fetchall()
     conn.close()
     return jsonify({"sorteos": [dict(s) for s in sorteos]})
-
 
 @app.route("/api/comprar", methods=["POST"])
 def comprar():
@@ -290,7 +299,6 @@ def comprar():
         "lote_id": current_lote
     }), 200
 
-
 @app.route("/api/subir-comprobante", methods=["POST"])
 def subir_comprobante():
     data = request.json
@@ -309,7 +317,6 @@ def subir_comprobante():
         respaldar_base_datos()
 
     return jsonify({"mensaje": "¡Comprobante adjuntado correctamente al lote!"}), 200
-
 
 @app.route("/api/consultar", methods=["POST"])
 def consultar():
@@ -331,7 +338,6 @@ def consultar():
         
     conn.close()
     return jsonify({"encontrado": True, "boletos": resultados}), 200
-
 
 @app.route("/api/webhook/whatsapp", methods=["POST"])
 def webhook_whatsapp():
@@ -482,7 +488,6 @@ def webhook_whatsapp():
 
     return jsonify({"status": "ok"}), 200
 
-
 def crear_imagen_boleto_memoria(boleto_id, host_url):
     conn = get_db()
     boleto = conn.execute("SELECT * FROM boletos WHERE id = ?", (boleto_id,)).fetchone()
@@ -568,7 +573,6 @@ def validar_boleto_qr(boleto_id):
         </html>
     """
 
-
 def verificar_admin(data):
     return data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password")
 
@@ -580,26 +584,18 @@ def admin_datos():
         conn_fix = get_db()
         conn_fix.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
         conn_fix.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
+        conn_fix.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
         conn_fix.commit()
         
         sorteos = conn_fix.execute("SELECT * FROM sorteos").fetchall()
-        boletos_raw = conn_fix.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
-        
-        boletos = []
-        for b in boletos_raw:
-            b_dict = dict(b)
-            # Forzamos directamente el booleano verdadero o string que lee el HTML
-            if b_dict['id'] <= 125:
-                b_dict['impreso'] = True
-            boletos.append(b_dict)
-
+        boletos = conn_fix.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
         total_clientes = conn_fix.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
         conn_fix.close()
         respaldar_base_datos()
 
     return jsonify({
         "sorteos": [dict(s) for s in sorteos],
-        "boletos": boletos,
+        "boletos": [dict(b) for b in boletos],
         "total_clientes": total_clientes
     })
 
