@@ -11,9 +11,6 @@ import shutil
 
 app = Flask(__name__)
 
-# ==========================================
-# CONFIGURACIÓN DE GREEN API (WHATSAPP)
-# ==========================================
 ID_INSTANCE = "710722782905"
 API_TOKEN_INSTANCE = "085f2d211be547b9a9377b0021c03faf845beb16436644748b"
 
@@ -77,9 +74,6 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
     threading.Thread(target=tarea).start()
 
 
-# ==========================================
-# BASE DE DATOS SQLITE CON DOBLE BLINDAJE Y RESPALDO
-# ==========================================
 CARPETA_DISCO = "/varidata"
 CARPETA_LOCAL = "."
 
@@ -110,7 +104,6 @@ def get_db():
     if not os.path.exists(DB_PATH) and os.path.exists(BACKUP_PATH):
         try:
             shutil.copy2(BACKUP_PATH, DB_PATH)
-            print("🔄 [RECUPERACIÓN] Base de datos restaurada automáticamente desde el respaldo secundario.")
         except:
             pass
             
@@ -182,10 +175,10 @@ def init_db():
     
     conn.commit()
     
-    # REGLA AUTOMÁTICA AL INICIAR:
-    # Del 1 al 125: Aprobados e impresos (cero impresión, cero WhatsApp).
+    # FORZAR ACTUALIZACIÓN DE ESTADOS EN CADA INICIO:
+    # Del 1 al 125: Aprobados e impresos (impreso = 1) -> No imprimen ni notifican.
     cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
-    # Del 126 al 180: Aprobados pero sin imprimir (se imprimirán al encender, cero WhatsApp).
+    # Del 126 al 180: Aprobados pero sin imprimir (impreso = 0) -> Se imprimen al encender.
     cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
     conn.commit()
     
@@ -236,9 +229,6 @@ def obtener_sorteos():
     return jsonify({"sorteos": [dict(s) for s in sorteos]})
 
 
-# ==========================================
-# COMPRA WEB
-# ==========================================
 @app.route("/api/comprar", methods=["POST"])
 def comprar():
     data = request.json
@@ -256,9 +246,7 @@ def comprar():
     with bloqueo_compra:
         conn = get_db()
         cursor = conn.cursor()
-        
         cursor.execute("INSERT OR REPLACE INTO clientes (telefono, nombre, cedula) VALUES (?, ?, ?)", (telefono, nombre, cedula))
-        
         sorteo = cursor.execute("SELECT * FROM sorteos WHERE id = ? AND estado = 'Activo'", (sorteo_id,)).fetchone()
         if not sorteo:
             conn.close()
@@ -350,9 +338,6 @@ def consultar():
     return jsonify({"encontrado": True, "boletos": resultados}), 200
 
 
-# ==========================================
-# WEBHOOK WHATSAPP (GREEN API)
-# ==========================================
 @app.route("/api/webhook/whatsapp", methods=["POST"])
 def webhook_whatsapp():
     datos = request.json
@@ -503,9 +488,6 @@ def webhook_whatsapp():
     return jsonify({"status": "ok"}), 200
 
 
-# ==========================================
-# GENERADOR DE TICKET DIGITAL CON QR
-# ==========================================
 def crear_imagen_boleto_memoria(boleto_id, host_url):
     conn = get_db()
     boleto = conn.execute("SELECT * FROM boletos WHERE id = ?", (boleto_id,)).fetchone()
@@ -592,9 +574,6 @@ def validar_boleto_qr(boleto_id):
     """
 
 
-# ==========================================
-# ADMINISTRACIÓN
-# ==========================================
 def verificar_admin(data):
     return data.get("usuario") in ADMIN_USERS and ADMIN_USERS[data.get("usuario")] == data.get("password")
 
@@ -644,7 +623,6 @@ def admin_finalizar_sorteo(sorteo_id):
         respaldar_base_datos()
     return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
 
-# RUTA: CARGA MANUAL (HASTA 180)
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -693,7 +671,6 @@ def admin_agregar_manual():
             cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(max_num + 1)))
 
         for num_boleto in nuevos_boletos_ids:
-            # Del 1 al 125 aprobados e impresos. Del 126 al 180 aprobados pero con impreso=0 para imprimir al encender.
             estado_inicial = 'Aprobado'
             impreso_inicial = 1 if num_boleto <= 125 else 0
 
