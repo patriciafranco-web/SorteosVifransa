@@ -182,7 +182,7 @@ def init_db():
     
     conn.commit()
     
-    # REGLA SOLICITADA:
+    # REGLA AUTOMÁTICA AL INICIAR:
     # Del 1 al 125: Aprobados e impresos (cero impresión, cero WhatsApp).
     cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
     # Del 126 al 180: Aprobados pero sin imprimir (se imprimirán al encender, cero WhatsApp).
