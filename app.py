@@ -7,6 +7,7 @@ import json
 from flask import Flask, jsonify, render_template, request, send_file, url_for
 from PIL import Image, ImageDraw, ImageFont
 import requests
+import shutil
 
 app = Flask(__name__)
 
@@ -77,23 +78,57 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 
 
 # ==========================================
-# BASE DE DATOS SQLITE BLINDADA (/varidata/sorteos.db)
+# BASE DE DATOS SQLITE CON DOBLE BLINDAJE Y RESPALDO
 # ==========================================
-CARPETA_DATOS = "/varidata" if os.path.exists("/varidata") else "."
-if not os.path.exists(CARPETA_DATOS) and CARPETA_DATOS != ".":
+CARPETA_DISCO = "/varidata"
+CARPETA_LOCAL = "."
+
+# Determinamos dónde está el disco de Render de forma segura
+if os.path.exists(CARPETA_DISCO):
+    CARPETA_DATOS = CARPETA_DISCO
+else:
+    CARPETA_DATOS = CARPETA_LOCAL
     try:
-        os.makedirs(CARPETA_DATOS, exist_ok=True)
+        os.makedirs(CARPETA_DISCO, exist_ok=True)
+        if os.path.exists(CARPETA_DISCO):
+            CARPETA_DATOS = CARPETA_DISCO
     except:
-        CARPETA_DATOS = "."
+        pass
 
 DB_PATH = os.path.join(CARPETA_DATOS, "sorteos.db")
+BACKUP_PATH = os.path.join(CARPETA_LOCAL, "sorteos_respaldo.db")
+
+print(f"📂 [SISTEMA VIFRAN] Usando base de datos principal en: {os.path.abspath(DB_PATH)}")
+
+def respaldar_base_datos():
+    """Crea una copia espejo de seguridad de la base de datos"""
+    try:
+        if os.path.exists(DB_PATH) and DB_PATH != BACKUP_PATH:
+            shutil.copy2(DB_PATH, BACKUP_PATH)
+    except Exception as e:
+        print(f"⚠️ Error al crear respaldo secundario: {e}")
 
 def get_db():
+    # Si por alguna razón la principal no existe pero tenemos el respaldo, lo restauramos al instante
+    if not os.path.exists(DB_PATH) and os.path.exists(BACKUP_PATH):
+        try:
+            shutil.copy2(BACKUP_PATH, DB_PATH)
+            print("🔄 [RECUPERACIÓN] Base de datos restaurada automáticamente desde el respaldo secundario.")
+        except:
+            pass
+            
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
+    # Si la principal no existe pero hay respaldo local, recuperarla antes de iniciar
+    if not os.path.exists(DB_PATH) and os.path.exists(BACKUP_PATH):
+        try:
+            shutil.copy2(BACKUP_PATH, DB_PATH)
+        except:
+            pass
+
     conn = get_db()
     cursor = conn.cursor()
     
@@ -151,7 +186,7 @@ def init_db():
     
     conn.commit()
     
-    # Asegurar que los boletos 1 y 2 (o cargas manuales) nunca se impriman ni envíen WhatsApp
+    # Marcar boletos manuales o 1 y 2 como impresos para que no envíen WhatsApp ni impriman
     cursor.execute("UPDATE boletos SET impreso = 1 WHERE id IN (1, 2) OR metodo_pago LIKE '%Manual%' OR metodo_pago LIKE '%Recuperación%'")
     conn.commit()
     
@@ -174,6 +209,7 @@ def init_db():
         conn.commit()
         
     conn.close()
+    respaldar_base_datos()
 
 init_db()
 
@@ -258,6 +294,7 @@ def comprar():
 
         conn.commit()
         conn.close()
+        respaldar_base_datos()
 
     rango_str = (
         f"#{str(nuevos_boletos_ids[0]).zfill(5)}"
@@ -287,6 +324,7 @@ def subir_comprobante():
         cursor.execute("UPDATE boletos SET imagen_comprobante = ? WHERE lote_id = ?", (imagen_comprobante, lote_id))
         conn.commit()
         conn.close()
+        respaldar_base_datos()
 
     return jsonify({"mensaje": "¡Comprobante adjuntado correctamente al lote!"}), 200
 
@@ -428,6 +466,7 @@ def webhook_whatsapp():
 
                 conn.commit()
                 conn.close()
+                respaldar_base_datos()
 
             sesion["datos"]["lote_id"] = current_lote
             sesion["datos"]["numeros"] = numeros_str
@@ -451,6 +490,7 @@ def webhook_whatsapp():
                     cursor.execute("UPDATE boletos SET imagen_comprobante = ? WHERE lote_id = ?", (download_url, current_lote))
                     conn.commit()
                     conn.close()
+                    respaldar_base_datos()
 
             enviar_mensaje_whatsapp(
                 telefono,
@@ -589,6 +629,7 @@ def admin_crear_sorteo():
         conn.commit()
         nuevo_sorteo = dict(cursor.execute("SELECT * FROM sorteos WHERE id = ?", (nuevo_id,)).fetchone())
         conn.close()
+        respaldar_base_datos()
     return jsonify({"mensaje": "¡Sorteo creado con éxito!", "sorteo": nuevo_sorteo})
 
 @app.route("/api/admin/finalizar-sorteo/<int:sorteo_id>", methods=["POST"])
@@ -601,9 +642,10 @@ def admin_finalizar_sorteo(sorteo_id):
         cursor.execute("UPDATE sorteos SET estado = 'Finalizado' WHERE id = ?", (sorteo_id,))
         conn.commit()
         conn.close()
+        respaldar_base_datos()
     return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
 
-# RUTA: CARGA MANUAL (MARCADOS COMO IMPRESOS PARA QUE NO IMPRIMAN NI NOTIFIQUEN)
+# RUTA: CARGA MANUAL
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -659,6 +701,7 @@ def admin_agregar_manual():
 
         conn.commit()
         conn.close()
+        respaldar_base_datos()
 
     return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (del #{nuevos_boletos_ids[0]} al #{nuevos_boletos_ids[-1]}) para {nombre} sin notificación ni impresión!"}), 200
 
@@ -678,6 +721,7 @@ def admin_aprobar_lote(lote_id):
         cursor.execute("UPDATE boletos SET estado = 'Aprobado', impreso = 0 WHERE lote_id = ?", (lote_id,))
         conn.commit()
         conn.close()
+        respaldar_base_datos()
 
         for b in boletos_lote:
             conn2 = get_db()
@@ -711,6 +755,7 @@ def admin_eliminar_lote(lote_id):
         cursor.execute("DELETE FROM boletos WHERE lote_id = ? AND estado = 'Pendiente'", (lote_id,))
         conn.commit()
         conn.close()
+        respaldar_base_datos()
         
     return jsonify({"mensaje": f"¡Lote #{lote_id} eliminado y números liberados con éxito!"}), 200
 
@@ -743,6 +788,7 @@ def marcar_como_impreso(lote_id):
     conn.execute("UPDATE boletos SET impreso = 1 WHERE lote_id = ?", (lote_id,))
     conn.commit()
     conn.close()
+    respaldar_base_datos()
     return jsonify({"status": "success"}), 200
 
 @app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
@@ -753,6 +799,7 @@ def api_reimprimir(boleto_id):
     conn.execute("UPDATE boletos SET impreso = 0 WHERE id = ?", (boleto_id,))
     conn.commit()
     conn.close()
+    respaldar_base_datos()
     return jsonify({"mensaje": f"Boleto #{boleto_id} reenviado a la impresora."}), 200
 
 @app.route("/api/admin/limpiar-pruebas", methods=["POST"])
@@ -768,6 +815,7 @@ def limpiar_pruebas():
         cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
         conn.commit()
         conn.close()
+        respaldar_base_datos()
     return jsonify({"mensaje": "¡Sistema limpiado con éxito!"}), 200
 
 @app.route("/impresion")
