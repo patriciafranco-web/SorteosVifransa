@@ -83,7 +83,6 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
 CARPETA_DISCO = "/varidata"
 CARPETA_LOCAL = "."
 
-# Determinamos dónde está el disco de Render de forma segura
 if os.path.exists(CARPETA_DISCO):
     CARPETA_DATOS = CARPETA_DISCO
 else:
@@ -101,7 +100,6 @@ BACKUP_PATH = os.path.join(CARPETA_LOCAL, "sorteos_respaldo.db")
 print(f"📂 [SISTEMA VIFRAN] Usando base de datos principal en: {os.path.abspath(DB_PATH)}")
 
 def respaldar_base_datos():
-    """Crea una copia espejo de seguridad de la base de datos"""
     try:
         if os.path.exists(DB_PATH) and DB_PATH != BACKUP_PATH:
             shutil.copy2(DB_PATH, BACKUP_PATH)
@@ -109,7 +107,6 @@ def respaldar_base_datos():
         print(f"⚠️ Error al crear respaldo secundario: {e}")
 
 def get_db():
-    # Si por alguna razón la principal no existe pero tenemos el respaldo, lo restauramos al instante
     if not os.path.exists(DB_PATH) and os.path.exists(BACKUP_PATH):
         try:
             shutil.copy2(BACKUP_PATH, DB_PATH)
@@ -122,7 +119,6 @@ def get_db():
     return conn
 
 def init_db():
-    # Si la principal no existe pero hay respaldo local, recuperarla antes de iniciar
     if not os.path.exists(DB_PATH) and os.path.exists(BACKUP_PATH):
         try:
             shutil.copy2(BACKUP_PATH, DB_PATH)
@@ -186,8 +182,11 @@ def init_db():
     
     conn.commit()
     
-    # Marcar boletos manuales o 1 y 2 como impresos para que no envíen WhatsApp ni impriman
-    cursor.execute("UPDATE boletos SET impreso = 1 WHERE id IN (1, 2) OR metodo_pago LIKE '%Manual%' OR metodo_pago LIKE '%Recuperación%'")
+    # REGLA SOLICITADA:
+    # Del 1 al 125: Aprobados e impresos (cero impresión, cero WhatsApp).
+    cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
+    # Del 126 al 180: Aprobados pero sin imprimir (se imprimirán al encender, cero WhatsApp).
+    cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
     conn.commit()
     
     cursor.execute('SELECT COUNT(*) FROM sorteos')
@@ -200,7 +199,7 @@ def init_db():
         
     cursor.execute("SELECT valor FROM config WHERE clave = 'contador_1'")
     if not cursor.fetchone():
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '126')")
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '181')")
         conn.commit()
 
     cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'")
@@ -282,7 +281,7 @@ def comprar():
                 cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
             else:
                 cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                num_boleto = int(cont_row["valor"]) if cont_row else 126
+                num_boleto = int(cont_row["valor"]) if cont_row else 181
                 cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
             nuevos_boletos_ids.append(num_boleto)
 
@@ -452,7 +451,7 @@ def webhook_whatsapp():
                         cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                     else:
                         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                        num_boleto = int(cont_row["valor"]) if cont_row else 126
+                        num_boleto = int(cont_row["valor"]) if cont_row else 181
                         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                     nuevos_boletos_ids.append(num_boleto)
 
@@ -625,7 +624,7 @@ def admin_crear_sorteo():
             VALUES (?, ?, ?, 'Activo', 'flyer_sorteo.jpg')
         ''', (data.get("titulo"), int(data.get("precio", 10000)), int(data.get("limite_boletos", 1000))))
         nuevo_id = cursor.lastrowid
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "126"))
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "181"))
         conn.commit()
         nuevo_sorteo = dict(cursor.execute("SELECT * FROM sorteos WHERE id = ?", (nuevo_id,)).fetchone())
         conn.close()
@@ -645,7 +644,7 @@ def admin_finalizar_sorteo(sorteo_id):
         respaldar_base_datos()
     return jsonify({"mensaje": "¡Sorteo finalizado con éxito!"}), 200
 
-# RUTA: CARGA MANUAL
+# RUTA: CARGA MANUAL (HASTA 180)
 @app.route("/api/admin/agregar-manual", methods=["POST"])
 def admin_agregar_manual():
     data = request.json
@@ -683,27 +682,31 @@ def admin_agregar_manual():
                     cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                 else:
                     cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                    num_boleto = int(cont_row["valor"]) if cont_row else 126
+                    num_boleto = int(cont_row["valor"]) if cont_row else 181
                     cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                 nuevos_boletos_ids.append(num_boleto)
 
         max_num = max(nuevos_boletos_ids)
         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-        actual_cont = int(cont_row["valor"]) if cont_row else 126
+        actual_cont = int(cont_row["valor"]) if cont_row else 181
         if max_num >= actual_cont:
             cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(max_num + 1)))
 
         for num_boleto in nuevos_boletos_ids:
+            # Del 1 al 125 aprobados e impresos. Del 126 al 180 aprobados pero con impreso=0 para imprimir al encender.
+            estado_inicial = 'Aprobado'
+            impreso_inicial = 1 if num_boleto <= 125 else 0
+
             cursor.execute('''
                 INSERT OR REPLACE INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'Carga Manual', 'Manual (Recuperación)', 'Carga interna', 'Aprobado', 1)
-            ''', (num_boleto, sorteo_id, current_lote, nombre, telefono, cedula, cantidad))
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'Carga Manual', 'Manual (Recuperación)', 'Carga interna', ?, ?)
+            ''', (num_boleto, sorteo_id, current_lote, nombre, telefono, cedula, cantidad, estado_inicial, impreso_inicial))
 
         conn.commit()
         conn.close()
         respaldar_base_datos()
 
-    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (del #{nuevos_boletos_ids[0]} al #{nuevos_boletos_ids[-1]}) para {nombre} sin notificación ni impresión!"}), 200
+    return jsonify({"mensaje": f"¡{cantidad} boletos agregados manualmente (del #{nuevos_boletos_ids[0]} al #{nuevos_boletos_ids[-1]}) para {nombre}!"}), 200
 
 @app.route("/api/admin/aprobar-lote/<int:lote_id>", methods=["POST"])
 def admin_aprobar_lote(lote_id):
@@ -811,7 +814,7 @@ def limpiar_pruebas():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM boletos")
         cursor.execute("DELETE FROM numeros_liberados")
-        cursor.execute("UPDATE config SET valor = '126' WHERE clave LIKE 'contador_%'")
+        cursor.execute("UPDATE config SET valor = '181' WHERE clave LIKE 'contador_%'")
         cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
         conn.commit()
         conn.close()
