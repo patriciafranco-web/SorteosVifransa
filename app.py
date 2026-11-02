@@ -173,10 +173,9 @@ def init_db():
     
     conn.commit()
     
-    # REGLA FORZADA ABSOLUTA:
-    # Del 1 al 125: Aprobados e impresos (impreso = 1) -> No imprimen ni notifican.
+    # BLINDAJE ESTRICTO: Forzar impreso = 1 y estado 'Aprobado' para el rango 1 al 125
     cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
-    # Del 126 al 180: Aprobados pero con impreso = 0 -> Se imprimen al encender, sin WhatsApp.
+    # Del 126 al 180: Aprobados pero impreso = 0 (se imprimirán al encender)
     cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
     conn.commit()
     
@@ -748,7 +747,8 @@ def admin_eliminar_lote(lote_id):
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     conn = get_db()
-    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 ORDER BY id ASC").fetchall()
+    # BLINDAJE: Excluir estrictamente cualquier boleto menor o igual a 125 para que nunca aparezca como pendiente de impresión
+    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 AND id > 125 ORDER BY id ASC").fetchall()
     
     pendientes = []
     lotes_procesados = set()
@@ -756,15 +756,16 @@ def obtener_pendientes_impresion():
         if b["lote_id"] not in lotes_procesados:
             lotes_procesados.add(b["lote_id"])
             sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (b["sorteo_id"],)).fetchone()
-            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? ORDER BY id ASC", (b["lote_id"],)).fetchall()
-            pendientes.append({
-                "id": b["lote_id"],
-                "sorteo_titulo": sorteo["titulo"] if sorteo else "Sorteo General",
-                "nombre": b["nombre"],
-                "cedula": b["cedula"],
-                "telefono": b["telefono"],
-                "numeros_asignados": [str(x["id"]).zfill(5) for x in nums]
-            })
+            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? AND id > 125 ORDER BY id ASC", (b["lote_id"],)).fetchall()
+            if nums:
+                pendientes.append({
+                    "id": b["lote_id"],
+                    "sorteo_titulo": sorteo["titulo"] if sorteo else "Sorteo General",
+                    "nombre": b["nombre"],
+                    "cedula": b["cedula"],
+                    "telefono": b["telefono"],
+                    "numeros_asignados": [str(x["id"]).zfill(5) for x in nums]
+                })
     conn.close()
     return jsonify(pendientes), 200
 
