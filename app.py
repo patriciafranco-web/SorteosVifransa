@@ -179,24 +179,30 @@ def init_db():
     
     conn.commit()
     
-    # REGLAS FIJAS: Marcar del 1 al 180 como impresos (ya salieron en papel)
-    cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 180")
+    # -------------------------------------------------------------
+    # REGLAS EXACTAS SOLICITADAS:
+    # 1 al 183: Aprobados e impresos (impreso = 1)
+    # 184 al 186: Aprobados pero pendientes de imprimir (impreso = 0)
+    # -------------------------------------------------------------
+    cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 183")
+    cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 184 AND 186")
     
-    # ACTUALIZAR LÍMITE A 2000 BOLETOS EN EL SORTEO ACTIVO
-    cursor.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
-    conn.commit()
-    
+    # Asegurar límite de 2000 boletos
     cursor.execute('SELECT COUNT(*) FROM sorteos')
     if cursor.fetchone()[0] == 0:
         cursor.execute('''
             INSERT INTO sorteos (id, titulo, precio, limite_boletos, estado, imagen_nombre)
             VALUES (1, 'Sorteo de 4 iPhones (15 Pro Max, 14 Pro Max, 13 Pro Max y 11)', 10000, 2000, 'Activo', 'flyer_sorteo.jpg')
         ''')
-        conn.commit()
+    else:
+        cursor.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
+    
+    conn.commit()
         
     cursor.execute("SELECT valor FROM config WHERE clave = 'contador_1'")
     if not cursor.fetchone():
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '181')")
+        # Como el contador libre empieza en 187
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '187')")
         conn.commit()
 
     cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'")
@@ -272,7 +278,7 @@ def comprar():
                 cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
             else:
                 cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                num_boleto = int(cont_row["valor"]) if cont_row else 181
+                num_boleto = int(cont_row["valor"]) if cont_row else 187
                 cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
             nuevos_boletos_ids.append(num_boleto)
 
@@ -436,7 +442,7 @@ def webhook_whatsapp():
                         cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                     else:
                         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                        num_boleto = int(cont_row["valor"]) if cont_row else 181
+                        num_boleto = int(cont_row["valor"]) if cont_row else 187
                         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                     nuevos_boletos_ids.append(num_boleto)
 
@@ -581,15 +587,10 @@ def admin_datos():
     
     with bloqueo_compra:
         conn_fix = get_db()
-        conn_fix.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 180")
-        conn_fix.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
-        conn_fix.commit()
-        
         sorteos = conn_fix.execute("SELECT * FROM sorteos").fetchall()
         boletos = conn_fix.execute("SELECT * FROM boletos ORDER BY id ASC").fetchall()
         total_clientes = conn_fix.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
         conn_fix.close()
-        respaldar_base_datos()
 
     return jsonify({
         "sorteos": [dict(s) for s in sorteos],
@@ -609,7 +610,7 @@ def admin_crear_sorteo():
             VALUES (?, ?, ?, 'Activo', 'flyer_sorteo.jpg')
         ''', (data.get("titulo"), int(data.get("precio", 10000)), int(data.get("limite_boletos", 1000))))
         nuevo_id = cursor.lastrowid
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "181"))
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "187"))
         conn.commit()
         nuevo_sorteo = dict(cursor.execute("SELECT * FROM sorteos WHERE id = ?", (nuevo_id,)).fetchone())
         conn.close()
@@ -666,19 +667,19 @@ def admin_agregar_manual():
                     cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                 else:
                     cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                    num_boleto = int(cont_row["valor"]) if cont_row else 181
+                    num_boleto = int(cont_row["valor"]) if cont_row else 187
                     cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                 nuevos_boletos_ids.append(num_boleto)
 
         max_num = max(nuevos_boletos_ids)
         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-        actual_cont = int(cont_row["valor"]) if cont_row else 181
+        actual_cont = int(cont_row["valor"]) if cont_row else 187
         if max_num >= actual_cont:
             cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(max_num + 1)))
 
         for num_boleto in nuevos_boletos_ids:
             estado_inicial = 'Aprobado'
-            impreso_inicial = 1 if num_boleto <= 180 else 0
+            impreso_inicial = 1 # Cargas manuales quedan marcadas como impresas para evitar que salgan de nuevo
 
             cursor.execute('''
                 INSERT OR REPLACE INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
@@ -748,7 +749,7 @@ def admin_eliminar_lote(lote_id):
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     conn = get_db()
-    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 AND id > 180 ORDER BY id ASC").fetchall()
+    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 ORDER BY id ASC").fetchall()
     
     pendientes = []
     lotes_procesados = set()
@@ -756,7 +757,7 @@ def obtener_pendientes_impresion():
         if b["lote_id"] not in lotes_procesados:
             lotes_procesados.add(b["lote_id"])
             sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (b["sorteo_id"],)).fetchone()
-            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? AND id > 180 ORDER BY id ASC", (b["lote_id"],)).fetchall()
+            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? ORDER BY id ASC", (b["lote_id"],)).fetchall()
             if nums:
                 pendientes.append({
                     "id": b["lote_id"],
@@ -778,7 +779,7 @@ def marcar_como_impreso(lote_id):
     respaldar_base_datos()
     return jsonify({"status": "success"}), 200
 
-@app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
+@app.route("/api/reimprimir/<int:boleto_id>", Methods=["POST"])
 def api_reimprimir(boleto_id):
     data = request.json
     if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
@@ -798,7 +799,7 @@ def limpiar_pruebas():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM boletos")
         cursor.execute("DELETE FROM numeros_liberados")
-        cursor.execute("UPDATE config SET valor = '181' WHERE clave LIKE 'contador_%'")
+        cursor.execute("UPDATE config SET valor = '187' WHERE clave LIKE 'contador_%'")
         cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
         conn.commit()
         conn.close()
