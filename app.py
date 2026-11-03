@@ -179,9 +179,8 @@ def init_db():
     
     conn.commit()
     
-    # REGLAS FIJAS:
-    cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
-    cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
+    # REGLAS FIJAS: Marcar del 1 al 180 como impresos (ya salieron en papel)
+    cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 180")
     
     # ACTUALIZAR LÍMITE A 2000 BOLETOS EN EL SORTEO ACTIVO
     cursor.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
@@ -401,7 +400,7 @@ def webhook_whatsapp():
             enviar_mensaje_whatsapp(
                 telefono,
                 f"🎟️ *Cantidad seleccionada:* {cantidad} boleto(s)\nTotal a pagar: *{total:,} Gs.*\n\n"
-                "📂 *Datos para el pago (ueno):*\n🔸 *RUC / Alias:* 4775796-5\n🔸 *Titular:* Patricia Franco\n\n"
+                "📂 *Datos para el pago (Banco GNB):*\n🔸 *Alias / CI:* 4775796\n🔸 *Titular:* Patricia Franco\n\n"
                 "📝 Por favor, escribe tu *Nombre completo* y tu *Cédula/RUC* (Ej: Juan Pérez 1234567)."
             )
 
@@ -446,7 +445,7 @@ def webhook_whatsapp():
                     cursor.execute('''
                         INSERT INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 0)
-                    ''', (num_boleto, sorteo_id, current_lote, nombre_cliente, telefono, cedula_cliente, cantidad, "", "WhatsApp / ueno", "Transferencia Directa"))
+                    ''', (num_boleto, sorteo_id, current_lote, nombre_cliente, telefono, cedula_cliente, cantidad, "", "WhatsApp / GNB", "Transferencia Directa"))
                     numeros_str.append(str(num_boleto).zfill(5))
 
                 conn.commit()
@@ -582,8 +581,7 @@ def admin_datos():
     
     with bloqueo_compra:
         conn_fix = get_db()
-        conn_fix.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 125")
-        conn_fix.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 126 AND 180")
+        conn_fix.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 180")
         conn_fix.execute("UPDATE sorteos SET limite_boletos = 2000 WHERE id = 1")
         conn_fix.commit()
         
@@ -680,7 +678,7 @@ def admin_agregar_manual():
 
         for num_boleto in nuevos_boletos_ids:
             estado_inicial = 'Aprobado'
-            impreso_inicial = 1 if num_boleto <= 125 else 0
+            impreso_inicial = 1 if num_boleto <= 180 else 0
 
             cursor.execute('''
                 INSERT OR REPLACE INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
@@ -750,7 +748,7 @@ def admin_eliminar_lote(lote_id):
 @app.route("/api/pendientes-impresion", methods=["GET"])
 def obtener_pendientes_impresion():
     conn = get_db()
-    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 AND id > 125 ORDER BY id ASC").fetchall()
+    boletos_aprobados = conn.execute("SELECT * FROM boletos WHERE estado = 'Aprobado' AND impreso = 0 AND id > 180 ORDER BY id ASC").fetchall()
     
     pendientes = []
     lotes_procesados = set()
@@ -758,7 +756,7 @@ def obtener_pendientes_impresion():
         if b["lote_id"] not in lotes_procesados:
             lotes_procesados.add(b["lote_id"])
             sorteo = conn.execute("SELECT titulo FROM sorteos WHERE id = ?", (b["sorteo_id"],)).fetchone()
-            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? AND id > 125 ORDER BY id ASC", (b["lote_id"],)).fetchall()
+            nums = conn.execute("SELECT id FROM boletos WHERE lote_id = ? AND id > 180 ORDER BY id ASC", (b["lote_id"],)).fetchall()
             if nums:
                 pendientes.append({
                     "id": b["lote_id"],
