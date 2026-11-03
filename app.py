@@ -73,9 +73,6 @@ def enviar_ticket_directo(telefono, boleto_id, host_url, caption):
             
     threading.Thread(target=tarea).start()
 
-# ==========================================
-# GESTIÓN SEGURA DE DISCO PERSISTENTE Y RESPALDO
-# ==========================================
 CARPETA_DISCO = "/varidata"
 CARPETA_LOCAL = "."
 
@@ -96,7 +93,6 @@ BACKUP_PATH = os.path.join(CARPETA_LOCAL, "sorteos_respaldo.db")
 print(f"📂 [VIFRAN DB] Ruta principal: {os.path.abspath(DB_PATH)}")
 
 def respaldar_base_datos():
-    """Crea una copia espejo de seguridad inmediata tras cada cambio"""
     try:
         if os.path.exists(DB_PATH) and DB_PATH != BACKUP_PATH:
             shutil.copy2(DB_PATH, BACKUP_PATH)
@@ -179,15 +175,6 @@ def init_db():
     
     conn.commit()
     
-    # -------------------------------------------------------------
-    # REGLAS EXACTAS SOLICITADAS:
-    # 1 al 183: Aprobados e impresos (impreso = 1)
-    # 184 al 186: Aprobados pero pendientes de imprimir (impreso = 0)
-    # -------------------------------------------------------------
-    cursor.execute("UPDATE boletos SET impreso = 1, estado = 'Aprobado' WHERE id <= 183")
-    cursor.execute("UPDATE boletos SET impreso = 0, estado = 'Aprobado' WHERE id BETWEEN 184 AND 186")
-    
-    # Asegurar límite de 2000 boletos
     cursor.execute('SELECT COUNT(*) FROM sorteos')
     if cursor.fetchone()[0] == 0:
         cursor.execute('''
@@ -201,7 +188,6 @@ def init_db():
         
     cursor.execute("SELECT valor FROM config WHERE clave = 'contador_1'")
     if not cursor.fetchone():
-        # Como el contador libre empieza en 187
         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '187')")
         conn.commit()
 
@@ -679,7 +665,7 @@ def admin_agregar_manual():
 
         for num_boleto in nuevos_boletos_ids:
             estado_inicial = 'Aprobado'
-            impreso_inicial = 1 # Cargas manuales quedan marcadas como impresas para evitar que salgan de nuevo
+            impreso_inicial = 1
 
             cursor.execute('''
                 INSERT OR REPLACE INTO boletos (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
@@ -779,7 +765,7 @@ def marcar_como_impreso(lote_id):
     respaldar_base_datos()
     return jsonify({"status": "success"}), 200
 
-@app.route("/api/reimprimir/<int:boleto_id>", Methods=["POST"])
+@app.route("/api/reimprimir/<int:boleto_id>", methods=["POST"])
 def api_reimprimir(boleto_id):
     data = request.json
     if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
