@@ -796,5 +796,34 @@ def limpiar_pruebas():
 def vista_impresion_web():
     return render_template("impresion.html")
 
+@app.route("/api/admin/liberar-boleto/<int:boleto_id>", methods=["POST"])
+def admin_liberar_boleto(boleto_id):
+    data = request.json or {}
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
+    
+    with bloqueo_compra:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Buscamos el boleto antes de borrarlo para saber su sorteo_id
+        boleto = cursor.execute("SELECT * FROM boletos WHERE id = ?", (boleto_id,)).fetchone()
+        if not boleto:
+            conn.close()
+            return jsonify({"error": "Boleto no encontrado"}), 404
+        
+        sorteo_id = boleto["sorteo_id"]
+        
+        # Lo guardamos en la tabla de números liberados para que el sistema lo pueda reasignar después
+        cursor.execute("INSERT OR IGNORE INTO numeros_liberados (sorteo_id, numero) VALUES (?, ?)", (sorteo_id, boleto_id))
+        
+        # Borramos ese boleto específico de la lista
+        cursor.execute("DELETE FROM boletos WHERE id = ?", (boleto_id,))
+        
+        conn.commit()
+        conn.close()
+        respaldar_base_datos()
+        
+    return jsonify({"mensaje": f"¡Boleto #{boleto_id} liberado con éxito!"}), 200
+
 if __name__ == "__main__":
     app.run(debug=True)
