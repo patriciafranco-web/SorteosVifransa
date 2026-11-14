@@ -191,7 +191,6 @@ def init_db():
         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '247')")
         conn.commit()
     else:
-        # Forzamos que el contador inicie en 247 para cubrir del 247 al 303
         cursor.execute("UPDATE config SET valor = '247' WHERE clave = 'contador_1' AND CAST(valor AS INTEGER) < 247")
         conn.commit()
 
@@ -201,7 +200,6 @@ def init_db():
         conn.commit()
         
     # CARGA AUTOMÁTICA DE RECUPERACIÓN (Del 1 al 246 y el 304)
-    # Los números del 247 al 303 quedan libres para la venta normal del sistema
     numeros_a_cargar = list(range(1, 247)) + [304]
     for num in numeros_a_cargar:
         cursor.execute('''
@@ -281,7 +279,6 @@ def comprar():
                 cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
                 num_boleto = int(cont_row["valor"]) if cont_row else 247
                 
-                # Si el contador llega al 304 (que ya está ocupado), lo salta automáticamente al 305
                 if num_boleto == 304:
                     num_boleto = 305
 
@@ -848,6 +845,34 @@ def admin_liberar_boleto(boleto_id):
         respaldar_base_datos()
         
     return jsonify({"mensaje": f"¡Boleto #{boleto_id} liberado con éxito!"}), 200
+
+@app.route("/api/admin/editar-boleto/<int:boleto_id>", methods=["POST"])
+def admin_editar_boleto(boleto_id):
+    data = request.json or {}
+    if not verificar_admin(data): return jsonify({"error": "No autorizado"}), 401
+    
+    nombre = data.get("nombre")
+    telefono = data.get("telefono")
+    cedula = data.get("cedula")
+    
+    if not nombre:
+        return jsonify({"error": "El nombre es obligatorio"}), 400
+        
+    with bloqueo_compra:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE boletos 
+            SET nombre = ?, telefono = ?, cedula = ? 
+            WHERE id = ?
+        ''', (nombre, telefono, cedula, boleto_id))
+        
+        conn.commit()
+        conn.close()
+        respaldar_base_datos()
+        
+    return jsonify({"mensaje": f"¡Boleto #{boleto_id} actualizado con éxito!"}), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
