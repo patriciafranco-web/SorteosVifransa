@@ -188,10 +188,10 @@ def init_db():
         
     cursor.execute("SELECT valor FROM config WHERE clave = 'contador_1'")
     if not cursor.fetchone():
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '247')")
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '264')")
         conn.commit()
     else:
-        cursor.execute("UPDATE config SET valor = '247' WHERE clave = 'contador_1' AND CAST(valor AS INTEGER) < 247")
+        cursor.execute("UPDATE config SET valor = '264' WHERE clave = 'contador_1' AND CAST(valor AS INTEGER) < 264")
         conn.commit()
 
     cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'")
@@ -199,14 +199,279 @@ def init_db():
         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('lote_contador', '1')")
         conn.commit()
         
-    # CARGA AUTOMÁTICA DE RECUPERACIÓN (Del 1 al 246 y el 304)
-    numeros_a_cargar = list(range(1, 247)) + [304]
-    for num in numeros_a_cargar:
+    # CARGA AUTOMÁTICA EXTRAÍDA DE TUS FOTOS (Del 1 al 263 y el 304)
+    datos_recuperacion = [
+        (1, "Gilberto Medina", "5812", "0974603135"),
+        (2, "Gilberto Medina", "5812", "0974603135"),
+        (3, "Carlos Ruben Britez Arevalos", "3967617", "0973132661"),
+        (4, "Carlos Ruben Britez Arevalos", "3967617", "0973132661"),
+        (5, "Eusebia Cristina Ortiz", "1422038", "0973165756"),
+        (6, "Eusebia Cristina Ortiz", "1422038", "0973165756"),
+        (7, "Carlos Moreno", "5180229", "0975310261"),
+        (8, "Carlos Moreno", "5180229", "0975310261"),
+        (9, "Carlos Moreno", "5180229", "0975310261"),
+        (10, "Leticia Alonso", "4291158", "0982288388"),
+        (11, "Leticia Alonso", "4291158", "0982288388"),
+        (12, "Edgar Gonzalez", "6172910", "0993277951"),
+        (13, "Edgar Gonzalez", "6172910", "0993277951"),
+        (14, "Edgar Gonzalez", "6172910", "0993277951"),
+        (15, "Edgar Gonzalez", "6172910", "0993277951"),
+        (16, "Edgar Gonzalez", "6172910", "0993277951"),
+        (17, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (18, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (19, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (20, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (21, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (22, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (23, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (24, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (25, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (26, "Jose Amaldo Fariña", "3439670", "0973401820"),
+        (27, "Angelica Sofia Rolon", "4151821-7", "0975835511"),
+        (28, "Angelica Sofia Rolon", "4151821-7", "0975835511"),
+        (29, "Adriana Miltos Bernal", "4305411", "0975530612"),
+        (30, "Adriana Miltos Bernal", "4305411", "0975530612"),
+        (31, "Elias Gimenez", "5148154", "0991227649"),
+        (32, "Elias Gimenez", "5148154", "0991227649"),
+        (33, "Elias Gimenez", "5148154", "0991227649"),
+        (34, "Elias Gimenez", "5148154", "0991227649"),
+        (35, "Elias Gimenez", "5148154", "0991227649"),
+        (36, "Elias Gimenez", "5148154", "0991227649"),
+        (37, "Elias Gimenez", "5148154", "0991227649"),
+        (38, "Elias Gimenez", "5148154", "0991227649"),
+        (39, "Elias Gimenez", "5148154", "0991227649"),
+        (40, "Elias Gimenez", "5148154", "0991227649"),
+        (41, "Junior Medina", "4566637", "0984812679"),
+        (42, "Junior Medina", "4566637", "0984812679"),
+        (43, "Jorge Amado Martinez Sanabria", "3722056", "0973609887"),
+        (44, "Jorge Amado Martinez Sanabria", "3722056", "0973609887"),
+        (45, "Jorge Amado Martinez Sanabria", "3722056", "0973609887"),
+        (46, "Jorge Amado Martinez Sanabria", "3722056", "0973609887"),
+        (47, "Jorge Amado Martinez Sanabria", "3722056", "0973609887"),
+        (48, "Jorge Gonzalez", "6134956", "0973139033"),
+        (49, "Jorge Gonzalez", "6134956", "0973139033"),
+        (50, "Jorge Gonzalez", "6134956", "0973139033"),
+        (51, "Jorge Gonzalez", "6134956", "0973139033"),
+        (52, "Jorge Gonzalez", "6134956", "0973139033"),
+        (53, "Jorge Gonzalez", "6134956", "0973139033"),
+        (54, "Jorge Gonzalez", "6134956", "0973139033"),
+        (55, "Jorge Gonzalez", "6134956", "0973139033"),
+        (56, "Jorge Gonzalez", "6134956", "0973139033"),
+        (57, "Blas Bareiro", "5251854", "0986851534"),
+        (58, "Blas Bareiro", "5251854", "0986851534"),
+        (59, "Blas Bareiro", "5251854", "0986851534"),
+        (60, "Blas Bareiro", "5251854", "0986851534"),
+        (61, "Blas Bareiro", "5251854", "0986851534"),
+        (62, "Blas Bareiro", "5251854", "0986851534"),
+        (63, "Blas Bareiro", "5251854", "0986851534"),
+        (64, "Blas Bareiro", "5251854", "0986851534"),
+        (65, "Blas Bareiro", "5251854", "0986851534"),
+        (66, "Blas Bareiro", "5251854", "0986851534"),
+        (67, "Gladys Zunilda Godoy Gimenez", "3203325", "0972285042"),
+        (68, "Luis Alberto Lafuente", "Quiñonez", "0000000000"),
+        (69, "Luis Alberto Lafuente", "Quiñonez", "0000000000"),
+        (70, "Luis Alberto Lafuente", "Quiñonez", "0000000000"),
+        (71, "Luis Alberto Lafuente", "Quiñonez", "0000000000"),
+        (72, "Luis Alberto Lafuente", "Quiñonez", "0000000000"),
+        (73, "Carlos Ruben Britez", "3967617", "0973132661"),
+        (74, "Carlos Ruben Britez", "3967617", "0973132661"),
+        (75, "Leticia Alonso", "4291158", "0982288388"),
+        (76, "Patricia Franco", "4775796", "0981047851"),
+        (77, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (78, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (79, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (80, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (81, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (82, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (83, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (84, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (85, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (86, "Gustavo Alfredo", "Piris Ramirez", "0000000000"),
+        (87, "Luis Moreno", "5180232", "0000000000"),
+        (88, "Luis Moreno", "5180232", "0000000000"),
+        (89, "Luis Moreno", "5180232", "0000000000"),
+        (90, "Luis Moreno", "5180232", "0000000000"),
+        (91, "Luis Moreno", "5180232", "0000000000"),
+        (92, "Alam", "4771551-0", "0000000000"),
+        (93, "Pedro Centurion", "7211174", "0000000000"),
+        (94, "Pedro Centurion", "7211174", "0000000000"),
+        (95, "Pedro Centurion", "7211174", "0000000000"),
+        (96, "Pedro Centurion", "7211174", "0000000000"),
+        (97, "9", "S/N", "0000000000"),
+        (98, "9", "S/N", "0000000000"),
+        (99, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (100, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (101, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (102, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (103, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (104, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (105, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (106, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (107, "Luis Alberto Gimenez", "6214153", "0000000000"),
+        (108, "Miguel angel vera", "4688671", "0000000000"),
+        (109, "Miguel angel vera", "4688671", "0000000000"),
+        (110, "Hugo Torres", "2342361", "0975893008"),
+        (111, "Cristhian Santiago jara cabañas", "4674571", "0973597603"),
+        (112, "Cristhian Santiago jara cabañas", "4674571", "0973597603"),
+        (113, "Cristhian Santiago jara cabañas", "4674571", "0973597603"),
+        (114, "Jose Rojas", "3431196", "0973537935"),
+        (115, "Emiel Patyn", "Caballero", "0000000000"),
+        (116, "Emiel Patyn", "Caballero", "0000000000"),
+        (117, "Emiel Patyn", "Caballero", "0000000000"),
+        (118, "Emiel Patyn", "Caballero", "0000000000"),
+        (119, "Emiel Patyn", "Caballero", "0000000000"),
+        (120, "Walter Franco", "Britez", "0000000000"),
+        (121, "Walter Franco", "Britez", "0000000000"),
+        (122, "Gaston cardozo", "5263773-5", "0984198070"),
+        (123, "Nelson Fernandez", "Gonzalez", "0000000000"),
+        (124, "Nelson Fernandez", "Gonzalez", "0000000000"),
+        (125, "Julian pesoa", "3694944", "0000000000"),
+        (126, "Eugenio", "Moreno", "0000000000"),
+        (127, "Eugenio", "Moreno", "0000000000"),
+        (128, "Eugenio", "Moreno", "0000000000"),
+        (129, "Eugenio", "Moreno", "0000000000"),
+        (130, "Eugenio", "Moreno", "0000000000"),
+        (131, "Eugenio", "Moreno", "0000000000"),
+        (132, "Eugenio", "Moreno", "0000000000"),
+        (133, "Eugenio", "Moreno", "0000000000"),
+        (134, "Eugenio", "Moreno", "0000000000"),
+        (135, "Eugenio", "Moreno", "0000000000"),
+        (136, "Eugenio", "Moreno", "0000000000"),
+        (137, "Eugenio", "Moreno", "0000000000"),
+        (138, "Eugenio", "Moreno", "0000000000"),
+        (139, "Eugenio", "Moreno", "0000000000"),
+        (140, "Eugenio", "Moreno", "0000000000"),
+        (141, "Eugenio", "Moreno", "0000000000"),
+        (142, "Eugenio", "Moreno", "0000000000"),
+        (143, "Eugenio", "Moreno", "0000000000"),
+        (144, "Eugenio", "Moreno", "0000000000"),
+        (145, "Eugenio", "Moreno", "0000000000"),
+        (146, "Eugenio", "Moreno", "0000000000"),
+        (147, "Eugenio", "Moreno", "0000000000"),
+        (148, "Eugenio", "Moreno", "0000000000"),
+        (149, "Eugenio", "Moreno", "0000000000"),
+        (150, "Eugenio", "Moreno", "0000000000"),
+        (151, "Eugenio", "Moreno", "0000000000"),
+        (152, "Eugenio", "Moreno", "0000000000"),
+        (153, "Eugenio", "Moreno", "0000000000"),
+        (154, "Eugenio", "Moreno", "0000000000"),
+        (155, "Eugenio", "Moreno", "0000000000"),
+        (156, "Eugenio", "Moreno", "0000000000"),
+        (157, "Eugenio", "Moreno", "0000000000"),
+        (158, "Eugenio", "Moreno", "0000000000"),
+        (159, "Eugenio", "Moreno", "0000000000"),
+        (160, "Eugenio", "Moreno", "0000000000"),
+        (161, "Eugenio", "Moreno", "0000000000"),
+        (162, "Eugenio", "Moreno", "0000000000"),
+        (163, "Eugenio", "Moreno", "0000000000"),
+        (164, "Eugenio", "Moreno", "0000000000"),
+        (165, "Eugenio", "Moreno", "0000000000"),
+        (166, "Eugenio", "Moreno", "0000000000"),
+        (167, "Eugenio", "Moreno", "0000000000"),
+        (168, "Eugenio", "Moreno", "0000000000"),
+        (169, "Eugenio", "Moreno", "0000000000"),
+        (170, "Eugenio", "Moreno", "0000000000"),
+        (171, "Eugenio", "Moreno", "0000000000"),
+        (172, "Eugenio", "Moreno", "0000000000"),
+        (173, "Eugenio", "Moreno", "0000000000"),
+        (174, "Eugenio", "Moreno", "0000000000"),
+        (175, "Eugenio", "Moreno", "0000000000"),
+        (176, "Eugenio", "Moreno", "0000000000"),
+        (177, "Eugenio", "Moreno", "0000000000"),
+        (178, "Eugenio", "Moreno", "0000000000"),
+        (179, "Eugenio", "Moreno", "0000000000"),
+        (180, "Eugenio", "Moreno", "0000000000"),
+        (181, "Lilian Rojas", "2532585", "595984849367"),
+        (182, "Daniel Ferreira Rodriguez", "1535101", "0000000000"),
+        (183, "Daniel Ferreira Rodriguez", "1535101", "0000000000"),
+        (184, "Juan Carlos Bogado", "2365253", "59598317232"),
+        (185, "Juan Carlos Bogado", "2365253", "59598317232"),
+        (186, "Ramón Horacio Silva", "centurión", "595994292705"),
+        (187, "Tomas Fanego", "5408776", "595987675775"),
+        (188, "Luis amaldo caceres otazu cl", "6259778", "595983687031"),
+        (189, "Luis amaldo caceres otazu cl", "6259778", "595983687031"),
+        (190, "Alberto Andrés franco", "britez", "595993523600"),
+        (191, "Alberto Andrés franco", "britez", "595993523600"),
+        (192, "Fernando Jose", "Aquino", "595985477862"),
+        (193, "Fernando Jose", "Aquino", "595985477862"),
+        (194, "Fernando Jose", "Aquino", "595985477862"),
+        (195, "Fernando Jose", "Aquino", "595985477862"),
+        (196, "Fernando Jose", "Aquino", "595985477862"),
+        (197, "Fernando Jose", "Aquino", "595985477862"),
+        (198, "Fernando Jose", "Aquino", "595985477862"),
+        (199, "Fernando Jose", "Aquino", "595985477862"),
+        (200, "Fernando Jose", "Aquino", "595985477862"),
+        (201, "Fernando Jose", "Aquino", "595985477862"),
+        (202, "Victor Gabriel González", "7531462", "0985999204"),
+        (203, "Victor Gabriel González", "7531462", "0985999204"),
+        (204, "Alan Martinez", "6067017", "0983792048"),
+        (205, "Nelson David avalos", "Pérez", "595987391404"),
+        (206, "CI", "4996838", "595973547758"),
+        (207, "CI", "4996838", "595973547758"),
+        (208, "Sandra Carolina Paredes", "3243582", "595986934453"),
+        (209, "Teod Portillo", "1181874", "0982146359"),
+        (210, "Miguel Prieto", "6362291", "595994496630"),
+        (211, "Miguel Prieto", "6362291", "595994496630"),
+        (212, "Rosa Villalba", "6060878", "0986819955"),
+        (213, "Rosa Villalba", "6060878", "0986819955"),
+        (214, "Rosa Villalba", "6060878", "0986819955"),
+        (215, "Rosa Villalba", "6060878", "0986819955"),
+        (216, "Rosa Villalba", "6060878", "0986819955"),
+        (217, "Paola Maldonado", "3780777", "595983814362"),
+        (218, "Paola Maldonado", "3780777", "595983814362"),
+        (219, "Dominga Galeano Vda de Álvarez", "205736", "0973147788"),
+        (220, "Dominga Galeano Vda de Álvarez", "205736", "0973147788"),
+        (221, "Nuvia González", "5120599", "595975762162"),
+        (222, "Nuvia González", "5120599", "595975762162"),
+        (223, "Nuvia González", "5120599", "595975762162"),
+        (224, "Nuvia González", "5120599", "595975762162"),
+        (225, "Nuvia González", "5120599", "595975762162"),
+        (226, "Anibal zaracho Pérez", "3574381", "0976255355"),
+        (227, "Anibal zaracho Pérez", "3574381", "0976255355"),
+        (228, "Francisco Maldonado", "1559034", "595983500640"),
+        (229, "Francisco Maldonado", "1559034", "595983500640"),
+        (230, "Arnaldo baez", "5918869", "595982479742"),
+        (231, "Arnaldo baez", "5918869", "595982479742"),
+        (232, "Pedro Cáceres", "4303608", "595973858404"),
+        (233, "Pedro Cáceres", "4303608", "595973858404"),
+        (234, "Sadi Duarte", "5.545.941", "595983436097"),
+        (235, "Sadi Duarte", "5.545.941", "595983436097"),
+        (236, "Hugo Azcona", "5034228", "595984885307"),
+        (237, "Simón López duré", "3006340", "595994898680"),
+        (238, "Rodrigo", "5740543", "595983964280"),
+        (239, "Marcelo Alegre", "5444050", "595973518444"),
+        (240, "Marcelo Alegre", "5444050", "595973518444"),
+        (242, "Elizabeth Castillo", "González", "595993272510"),
+        (243, "Fulgencio Pérez Giménez", "1702367", "595993284612"),
+        (244, "Roberto", "arca", "595984833375"),
+        (245, "Roberto", "arca", "595984833375"),
+        (246, "Roberto", "arca", "595984833375"),
+        (247, "Roberto", "arca", "595984833375"),
+        (248, "Roberto", "arca", "595984833375"),
+        (249, "Roberto", "arca", "595984833375"),
+        (250, "Roberto", "arca", "595984833375"),
+        (251, "Roberto", "arca", "595984833375"),
+        (252, "Roberto", "arca", "595984833375"),
+        (253, "Roberto", "arca", "595984833375"),
+        (254, "Roberto", "arca", "595984833375"),
+        (255, "Roberto", "arca", "595984833375"),
+        (256, "Roberto", "arca", "595984833375"),
+        (257, "Roberto", "arca", "595984833375"),
+        (258, "Roberto", "arca", "595984833375"),
+        (259, "Roberto", "arca", "595984833375"),
+        (260, "Roberto", "arca", "595984833375"),
+        (261, "Roberto", "arca", "595984833375"),
+        (262, "Roberto", "arca", "595984833375"),
+        (263, "Roberto", "arca", "595984833375"),
+        (304, "Isabel Maldonado", "3558767", "0973510428")
+    ]
+
+    for num, nom, ced, tel in datos_recuperacion:
         cursor.execute('''
-            INSERT OR IGNORE INTO boletos 
+            INSERT OR REPLACE INTO boletos 
             (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
-            VALUES (?, 1, 999, 'Participante Anterior', '0000000000', '0000000', 1, 'Carga Manual', 'Manual', 'Recuperacion', 'Aprobado', 1)
-        ''', (num,))
+            VALUES (?, 1, 999, ?, ?, ?, 1, 'Carga Manual', 'Manual', 'Recuperacion', 'Aprobado', 1)
+        ''', (num, nom, tel, ced))
     
     conn.commit()
     conn.close()
@@ -277,7 +542,7 @@ def comprar():
                 cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
             else:
                 cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                num_boleto = int(cont_row["valor"]) if cont_row else 247
+                num_boleto = int(cont_row["valor"]) if cont_row else 264
                 
                 if num_boleto == 304:
                     num_boleto = 305
@@ -445,7 +710,7 @@ def webhook_whatsapp():
                         cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                     else:
                         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                        num_boleto = int(cont_row["valor"]) if cont_row else 247
+                        num_boleto = int(cont_row["valor"]) if cont_row else 264
                         
                         if num_boleto == 304:
                             num_boleto = 305
@@ -617,7 +882,7 @@ def admin_crear_sorteo():
             VALUES (?, ?, ?, 'Activo', 'flyer_sorteo.jpg')
         ''', (data.get("titulo"), int(data.get("precio", 10000)), int(data.get("limite_boletos", 1000))))
         nuevo_id = cursor.lastrowid
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "247"))
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "264"))
         conn.commit()
         nuevo_sorteo = dict(cursor.execute("SELECT * FROM sorteos WHERE id = ?", (nuevo_id,)).fetchone())
         conn.close()
@@ -674,7 +939,7 @@ def admin_agregar_manual():
                     cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                 else:
                     cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                    num_boleto = int(cont_row["valor"]) if cont_row else 247
+                    num_boleto = int(cont_row["valor"]) if cont_row else 264
                     
                     if num_boleto == 304:
                         num_boleto = 305
@@ -684,7 +949,7 @@ def admin_agregar_manual():
 
         max_num = max(nuevos_boletos_ids)
         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-        actual_cont = int(cont_row["valor"]) if cont_row else 247
+        actual_cont = int(cont_row["valor"]) if cont_row else 264
         if max_num >= actual_cont:
             cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(max_num + 1)))
 
@@ -810,7 +1075,7 @@ def limpiar_pruebas():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM boletos")
         cursor.execute("DELETE FROM numeros_liberados")
-        cursor.execute("UPDATE config SET valor = '247' WHERE clave LIKE 'contador_%'")
+        cursor.execute("UPDATE config SET valor = '264' WHERE clave LIKE 'contador_%'")
         cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
         conn.commit()
         conn.close()
