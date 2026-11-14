@@ -340,7 +340,6 @@
                             ? '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Aprobado</span>' 
                             : '<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">Pendiente</span>';
 
-                        // CORRECCIÓN AQUÍ: Forzar lectura de impreso ya sea número 1 o texto
                         let impresoHtml = (b.id <= 125 || b.impreso === 1 || b.impreso === '1' || b.impreso === true || b.impreso === 'Impreso')
                             ? '<span class="text-emerald-400 font-bold">Impreso</span>' 
                             : '<span class="text-amber-400">Pendiente</span>';
@@ -351,15 +350,49 @@
                                 <td class="p-3">${b.nombre}</td>
                                 <td class="p-3 text-slate-300">CI: ${b.cedula}<br><span class="text-xs text-slate-400">Tel: ${b.telefono}</span></td>
                                 <td class="p-3">${estadoBadge}</td>
-                                <td class="p-3 flex items-center space-x-3">
+                                <td class="p-3 flex items-center space-x-2 flex-wrap gap-y-2">
                                     ${impresoHtml}
                                     <button onclick="reimprimirBoleto(${b.id})" class="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2.5 py-1 rounded text-xs transition duration-150 shadow">
                                         Re-imprimir
+                                    </button>
+                                    <button onclick="editarBoletoPrompt(${b.id}, '${b.nombre}', '${b.cedula}', '${b.telefono}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-xs transition duration-150 shadow">
+                                        Editar
                                     </button>
                                 </td>
                             </tr>`;
                     });
                 }
+            }
+        }
+
+        async function editarBoletoPrompt(boletoId, nombreActual, cedulaActual, telActual) {
+            const nuevoNombre = prompt(`Editar Nombre para Boleto #${boletoId}:`, nombreActual);
+            if (nuevoNombre === null) return; // Cancelado
+
+            const nuevaCedula = prompt(`Editar Cédula para Boleto #${boletoId}:`, cedulaActual);
+            if (nuevaCedula === null) return;
+
+            const nuevoTel = prompt(`Editar Teléfono para Boleto #${boletoId}:`, telActual);
+            if (nuevoTel === null) return;
+
+            const res = await fetch(`/api/admin/editar-boleto/${boletoId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    usuario: currentUser,
+                    password: currentPass,
+                    nombre: nuevoNombre.trim(),
+                    cedula: nuevaCedula.trim(),
+                    telefono: nuevoTel.trim()
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.mensaje);
+                cargarDatosAdmin();
+            } else {
+                alert("Error: " + (data.error || "No se pudo actualizar"));
             }
         }
 
@@ -412,7 +445,7 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
-                    alert("¡Orden de reimpresión enviada con éxito à la impresora!");
+                    alert("¡Orden de reimpresión enviada con éxito a la impresora!");
                     cargarDatosAdmin();
                 } else {
                     alert("Error: " + (data.error || "No se pudo reimprimir"));
