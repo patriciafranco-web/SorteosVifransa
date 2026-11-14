@@ -188,7 +188,11 @@ def init_db():
         
     cursor.execute("SELECT valor FROM config WHERE clave = 'contador_1'")
     if not cursor.fetchone():
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '187')")
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('contador_1', '247')")
+        conn.commit()
+    else:
+        # Forzamos que el contador inicie en 247 para cubrir del 247 al 303
+        cursor.execute("UPDATE config SET valor = '247' WHERE clave = 'contador_1' AND CAST(valor AS INTEGER) < 247")
         conn.commit()
 
     cursor.execute("SELECT valor FROM config WHERE clave = 'lote_contador'")
@@ -196,6 +200,17 @@ def init_db():
         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES ('lote_contador', '1')")
         conn.commit()
         
+    # CARGA AUTOMÁTICA DE RECUPERACIÓN (Del 1 al 246 y el 304)
+    # Los números del 247 al 303 quedan libres para la venta normal del sistema
+    numeros_a_cargar = list(range(1, 247)) + [304]
+    for num in numeros_a_cargar:
+        cursor.execute('''
+            INSERT OR IGNORE INTO boletos 
+            (id, sorteo_id, lote_id, nombre, telefono, cedula, cantidad_lote, imagen_comprobante, metodo_pago, detalle_pago, estado, impreso)
+            VALUES (?, 1, 999, 'Participante Anterior', '0000000000', '0000000', 1, 'Carga Manual', 'Manual', 'Recuperacion', 'Aprobado', 1)
+        ''', (num,))
+    
+    conn.commit()
     conn.close()
     respaldar_base_datos()
 
@@ -264,7 +279,12 @@ def comprar():
                 cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
             else:
                 cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                num_boleto = int(cont_row["valor"]) if cont_row else 187
+                num_boleto = int(cont_row["valor"]) if cont_row else 247
+                
+                # Si el contador llega al 304 (que ya está ocupado), lo salta automáticamente al 305
+                if num_boleto == 304:
+                    num_boleto = 305
+
                 cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
             nuevos_boletos_ids.append(num_boleto)
 
@@ -428,7 +448,11 @@ def webhook_whatsapp():
                         cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                     else:
                         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                        num_boleto = int(cont_row["valor"]) if cont_row else 187
+                        num_boleto = int(cont_row["valor"]) if cont_row else 247
+                        
+                        if num_boleto == 304:
+                            num_boleto = 305
+
                         cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                     nuevos_boletos_ids.append(num_boleto)
 
@@ -596,7 +620,7 @@ def admin_crear_sorteo():
             VALUES (?, ?, ?, 'Activo', 'flyer_sorteo.jpg')
         ''', (data.get("titulo"), int(data.get("precio", 10000)), int(data.get("limite_boletos", 1000))))
         nuevo_id = cursor.lastrowid
-        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "187"))
+        cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{nuevo_id}", "247"))
         conn.commit()
         nuevo_sorteo = dict(cursor.execute("SELECT * FROM sorteos WHERE id = ?", (nuevo_id,)).fetchone())
         conn.close()
@@ -653,13 +677,17 @@ def admin_agregar_manual():
                     cursor.execute("DELETE FROM numeros_liberados WHERE sorteo_id = ? AND numero = ?", (sorteo_id, num_boleto))
                 else:
                     cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-                    num_boleto = int(cont_row["valor"]) if cont_row else 187
+                    num_boleto = int(cont_row["valor"]) if cont_row else 247
+                    
+                    if num_boleto == 304:
+                        num_boleto = 305
+
                     cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(num_boleto + 1)))
                 nuevos_boletos_ids.append(num_boleto)
 
         max_num = max(nuevos_boletos_ids)
         cont_row = cursor.execute("SELECT valor FROM config WHERE clave = ?", (f"contador_{sorteo_id}",)).fetchone()
-        actual_cont = int(cont_row["valor"]) if cont_row else 187
+        actual_cont = int(cont_row["valor"]) if cont_row else 247
         if max_num >= actual_cont:
             cursor.execute("INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)", (f"contador_{sorteo_id}", str(max_num + 1)))
 
@@ -785,7 +813,7 @@ def limpiar_pruebas():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM boletos")
         cursor.execute("DELETE FROM numeros_liberados")
-        cursor.execute("UPDATE config SET valor = '187' WHERE clave LIKE 'contador_%'")
+        cursor.execute("UPDATE config SET valor = '247' WHERE clave LIKE 'contador_%'")
         cursor.execute("UPDATE config SET valor = '1' WHERE clave = 'lote_contador'")
         conn.commit()
         conn.close()
@@ -805,7 +833,6 @@ def admin_liberar_boleto(boleto_id):
         conn = get_db()
         cursor = conn.cursor()
         
-        # Buscamos el boleto antes de borrarlo para saber su sorteo_id
         boleto = cursor.execute("SELECT * FROM boletos WHERE id = ?", (boleto_id,)).fetchone()
         if not boleto:
             conn.close()
@@ -813,10 +840,7 @@ def admin_liberar_boleto(boleto_id):
         
         sorteo_id = boleto["sorteo_id"]
         
-        # Lo guardamos en la tabla de números liberados para que el sistema lo pueda reasignar después
         cursor.execute("INSERT OR IGNORE INTO numeros_liberados (sorteo_id, numero) VALUES (?, ?)", (sorteo_id, boleto_id))
-        
-        # Borramos ese boleto específico de la lista
         cursor.execute("DELETE FROM boletos WHERE id = ?", (boleto_id,))
         
         conn.commit()
